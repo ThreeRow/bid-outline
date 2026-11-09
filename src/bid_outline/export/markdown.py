@@ -20,6 +20,20 @@ def write_atomic(path: Path, content: str) -> None:
 
 def export_result(result: dict, output: Path) -> dict[str, str]:
     output = Path(output)
+    if result.get('flow_version') == 'text-directory-1':
+        text = result.get('directory_text') or result.get('draft_text') or '尚无可用目录草稿。'
+        label = '最终目录文本（未作语义验收）' if result.get('directory_text') else '未完成的目录草稿'
+        issues = result.get('issues', []) + result.get('unprocessed_ranges', [])
+        files = {
+            'backbone.md': f"# 技术标目录\n\n运行状态：{result['status']}\n\n{label}\n\n{text}\n",
+            'unresolved.md': '# 未解决事项\n\n' + ('\n\n'.join(
+                '```json\n' + json.dumps(item, ensure_ascii=False, indent=2) + '\n```' for item in issues)
+                or '无执行问题记录；未进行全文漏提或目录语义检查。') + '\n',
+            'provenance.json': json.dumps(result, ensure_ascii=False, indent=2) + '\n',
+        }
+        for name, content in files.items():
+            write_atomic(output / name, content)
+        return {name: str((output / name).resolve()) for name in files}
     outline = result.get("outline") or {}
     nodes = outline.get("nodes", [])
     lines = ["# 技术标骨干目录", "", f"运行状态：{result['status']}", "",

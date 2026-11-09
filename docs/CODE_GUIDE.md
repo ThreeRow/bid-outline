@@ -1,308 +1,154 @@
 # 代码导引：模块、文件与运行流转
 
-核对日期：2026-11-08；代码版本：0.11.0。本文描述当前代码，不把历史设计计划当作已实现。环境、业务规则、已知故障及实验结论统一见[项目公共文件](../PROJECT_CONTEXT.md)。
+核对日期：2026-11-09；应用版本：0.12.0。当前默认入口为文本目录流程。旧P任务及旧runner保留供历史对照，不是新CLI的运行链路。环境及历史服务问题见[PROJECT_CONTEXT](../PROJECT_CONTEXT.md)，重构目标见[24号计划](24_文本目录生成流程重构计划.md)。
 
-## 1. 先看哪里
+## 1. 最短阅读路径
 
-理解一次运行的最短路径：
+1. `src/bid_outline/cli.py::execute`：输入、配置、run锁、client、runner及导出。
+2. `document/readers.py::read_document`：阅读产物到Document。
+3. `document/locate.py::locate`：章节、关键词定位ABC候选范围。
+4. `workflow/text_runner.py::TextWorkflowRunner.run`：新的业务主流程。
+5. `model/text_tasks.py`及`model/prompts/text/`：独立文本任务与占位提示。
+6. `model/executor.py::_execute/_parse`：预算、通信、审计、恢复、正文采用。
+7. `export/markdown.py::export_result`：从采用的结果导出文本目录。
 
-1. `src/bid_outline/cli.py::execute`：参数、输入、provider和run生命周期。
-2. `domain/__init__.py`：正文、来源、要求、目录、归属、检查的对象契约。
-3. `document/readers.py::read_document`：上游阅读产物如何进入本项目。
-4. `workflow/runner.py::run`：完整阶段顺序，再按需要读对应方法。
-5. `model/executor.py::_execute`：每次调用的预算、审计、重试与采用。
-6. `workflow/outline.py`与`storage/repository.py`：候选如何变为正式目录版本。
-7. `export/markdown.py::export_result`：输出来自哪些已采用数据。
+以下源码路径以`src/bid_outline/`为基准。新流程提示词尚待用户参与定稿，未作真实模型质量验收。
 
-下表和后文以`src/bid_outline/`为源码路径基准；脚本、配置和测试路径相对项目根目录。
-
-## 2. 仓库边界
-
-| 目录/文件 | 负责内容 | 不应混淆的边界 |
-|---|---|---|
-| `src/bid_outline/` | 本项目生成工作流 | 不负责DOCX原始解析 |
-| `document-reading/` | 已有Docling＋OOXML阅读副本与独立运行时 | 按接口接入；标题识别不是技术标目录生成 |
-| `configs/` | 示例运行配置 | 服务能力声明与代码默认值分开看 |
-| `scripts/` | 单文件GPU测试、四文件train批处理和计时 | 编排多个进程，不替代业务runner |
-| `tests/unit/`、`tests/integration/` | 机械契约、失败恢复、模拟全流程回归 | 不等于真实模型语义验收 |
-| `test_inputs/`、`test_materials/` | 实际输入及历史样例 | 样例适配器不是生产阅读器 |
-| `runs/`、`logs/` | 每次真实运行、日志、导出、审计 | 不作为源码或默认配置编辑 |
-| `reviews/` | 审查、对照脚本、冻结样例、诊断报告 | 历史结果不可当作现版本必然表现 |
-| `docs/` | 业务基线和逐版本实现记录 | 01–06含早期设计，07以后多为历史阶段记录 |
-| `pyproject.toml` | 包版本、依赖、CLI入口、pytest配置 | 真实tokenizer依赖另列可选extra |
-| `environment-cu128.yml`、`requirements-cu128.txt` | 已有环境记录 | 不要求每次重新安装环境 |
-
-`__pycache__/`和运行生成文件不属于需要人工维护的功能模块。
-
-## 3. 源码文件职责
-
-### 3.1 入口、配置与数据模型
-
-| 文件 | 主要职责 |
-|---|---|
-| `__init__.py` | 应用版本；恢复时与旧run版本比较 |
-| `__main__.py` | `python -m bid_outline`入口，转交CLI |
-| `cli.py` | `run/resume/export/status/doctor`命令，run锁、配置加载、阅读桥接、provider选择、runner创建与资源关闭；导出/状态读取不生成模型内容 |
-| `config.py` | `AppConfig`严格参数校验；预算、并发、重试、train参数、thinking逐任务优先级及协议选择；`load_config`支持配置快照布局 |
-| `domain/__init__.py` | Pydantic领域对象与目录树校验；禁止重复节点、丢失父节点、循环、非法层级/顺序等 |
-
-核心对象：
-
-| 对象 | 主要数据及用途 |
-|---|---|
-| `SourceRef` | document/element/table/cell身份、文本范围、精度与reader元信息；不推断不存在的页码或字符对齐 |
-| `DocumentElement`、`Document` | 适配后的原文元素、顺序、章节路径、表格元数据、输入哈希和诊断 |
-| `Chunk` | 本次负责正文、独占来源、辅助上下文、跨小节`section_spans`、延续关系 |
-| `RequirementGroup` | A/B/C或待定、主题、完整要求、材料引用与生产任务 |
-| `OutlineNode`、`OutlineVersion` | 树节点、依据、来源，以及不可变目录快照和父版本 |
-| `OutlineConstraint` | 保护节点、封闭子项、来源清单身份与相对顺序等 |
-| `RequirementAssignment` | 要求到节点的承接范围、共同条件、未承接内容及所依赖目录版本 |
-| `ReviewFinding`、`ExtensionSuggestion` | 检查发现及其状态、独立扩展建议及审核状态 |
-
-### 3.2 阅读适配与分块：`document/`
-
-| 文件 | 主要函数/职责 |
-|---|---|
-| `__init__.py` | 对外导出阅读、切块、拆块、查找接口 |
-| `readers.py` | `read_document`接收reading目录或JSON，要求version=2和corrected；读取fragments/sections、原始表格及source_map/validation/manifest；`table_rows`恢复行与跨行父项；`_sample`提供显式历史样例适配 |
-| `token_chunks.py` | `token_chunks`优先整章，再递归小节/语义单元；先扣提示和上下文额度，再用完整请求复核；生成稳定块身份和跨小节对应关系 |
-| `chunks.py` | `chunk_document`旧字符打包兼容；`split_chunk`按已负责范围细分；`_table_parts`保留行组/表头/跨行条件；`_slice_ref`维护来源偏移 |
-| `paragraph_context.py` | 列表组与范围保护，提取相邻引导句和条件作为辅助上下文；辅助内容不变成正文归属 |
-| `lookup.py` | 关键词命中、引用候选定位、章节/附件/局部范围选择及查找线索；返回候选和范围证据，不由词命中直接确认业务关联 |
-
-生产token路径通过runner提供的`source_allowance/source_fits`计算实际任务预算。字符路径保留给无tokenizer的离线模拟。单元不可安全拆分时保留失败范围，不截断正文来伪装成功。
-
-### 3.3 业务流程：`workflow/`
-
-| 文件 | 主要职责 |
-|---|---|
-| `__init__.py` | 包级runner入口 |
-| `runner.py` | 主编排、任务材料准备、补读、阶段状态、要求/材料/归属集合、检查修正、版本集中提交；不直接HTTP请求 |
-| `common.py` | `dump/present`构造类型化可读材料，稳定identity、ID列表、旧字符分批、`bounded_map`有界并发 |
-| `context.py` | 背景候选、章节约束、祖先路径、章节候选局部编号隔离；候选不自动成为新增义务 |
-| `history_view.py` | `HistoryPresenter`恢复前序调用短编号的原始语境，给当前输入附对应表；不篡改历史自由文本 |
-| `outline.py` | 节点记录转领域对象，树关系与深度计算，版本建立、分支替换、保留骨架、封闭清单和保护约束执行 |
-| `source_lists.py` | 将模型识别的清单绑定到具体来源材料和有界清单身份；保留原顺序/层级，拒绝跨材料错误拼接 |
-| `repair_scope.py` | `RepairScope`冻结修正范围、要求、归属与约束；超预算可安全下分；`repair_waves`识别冲突并安排独立请求批次 |
-
-`runner.py`方法导航：
-
-| 方法 | 功能与后继 |
-|---|---|
-| `run` | 恢复校验/读取文档 → 分块 → 扫描与提取 → 分类 → 骨架及目录 → 复查修正 → 扩展 → result/manifest |
-| `budget_messages/check_budget/fits` | 与执行器一致地准备短编号、协议和thinking计数，供规划阶段使用 |
-| `source_messages/source_allowance/source_fits` | P01/P02/P03空正文开销预扣和完整块准入，P03预留初筛结果空间 |
-| `process_chunk` | 捕获预算/截断，拆负责范围，移除被替代块的派生结果并递归处理 |
-| `_process_chunk` | P01/P02判断 → P03精炼 → 精炼材料落盘 → P04-A/B/C分别提取 |
-| `resolve_categories` | P05处理待定要求，保留无法消歧的事项 |
-| `call` | 生成业务task_id、依赖和来源位置 → executor → 必要时P06确认引用并补读、有限重做 |
-| `sources/requirement_inputs/scoped_ids` | 为同一范围组织资料、显式产物依赖和可引用身份 |
-| `build_skeleton/skeleton_material` | P07结构依据 → P08建立或增补；完整预算分批、背景分页、来源清单与禁止新增约束绑定 |
-| `assign_all/resolve_unassigned` | P09归属 → P10未承接调整建议 → 集中P08修改 → 重新归属 |
-| `generate/branch_requirements` | 按章取得要求及分工，P11生成完整下级；多候选P12整合；集中提交各独立分支 |
-| `review` | P14覆盖、P15结构、P13跨章交叉等发现汇总 |
-| `review_and_repair` | 冻结检查范围 → P16局部修正 → 准入检查与版本提交 → 归属更新/复查；循环次数有限 |
-| `extend` | P17给出独立建议 → P18检查其边界、条件和适用性 |
-| `commit/refresh_assignments` | 执行约束、保存来源、事务更新目录版本；旧归属受修改影响时标待确认 |
-| `result/aclose` | 汇总输出对象、取消/关闭执行器并刷新审计资源 |
-
-### 3.4 模型执行与协议：`model/`
-
-| 文件 | 主要职责 |
-|---|---|
-| `__init__.py` | 模型包入口 |
-| `executor.py` | 唯一生成调用网关：task锁、指纹、缓存采用、预算、全局在途信号量、失败/格式重试、原始证据、task采用与恢复 |
-| `client.py` | `ModelResponse/ModelClientError`、OpenAI HTTP客户端、FakeModelClient、provider工厂；真实工厂要求本地tokenizer及合法窗口配置 |
-| `train_client.py` | 文本train query拼接、提交票据、轮询、终态ID匹配、thinking正文分离与原始响应保留；不确定提交不自动重提 |
-| `budget.py` | `TokenBudget`本地fast tokenizer、计数缓存、任务开关模板、提示开销预扣、有效窗口及完整输入＋输出＋安全余量检查 |
-| `packing.py` | `pack_items`按完整请求fits函数贪心组织完整记录；超大的单条交上层明确处理 |
-| `task_specs.py` | P任务名称、模板和解析版本、模板读取、输入边界、短ID说明、strict/compact/Markdown提示选择 |
-| `references.py` | 类型化引用契约、`Presented`、可见对象分组、短编号映射、输入视图渲染与输出引用恢复；自由文本不做全局替换 |
-| `parsers.py` | strict字段/记录/枚举解析、ID角色检查、目录协议校验、格式反馈、有限且确定的闭合修复 |
-| `compact_protocol.py` | 支持任务的简洁字段/记录格式，确定性补内部局部编号和标记，再交strict校验 |
-| `markdown_directory.py` | P08/P11/P12/P16标题AST解析，生成节点/父子/顺序，按精确标题＋父节点恢复已有身份，再交strict校验；新标题仍要求依据 |
-| `audit_io.py` | 异步调用串行I/O worker写证据，避免文件fsync阻塞事件循环；退出时drain |
-| `call_view.py` | 按任务/触发阶段组织调用目录，生成`calls.md`和每次调用`summary.md`导航 |
-| `replay.py` | 显式跨run精确请求复用，核对服务和请求内容；保留旧响应来源与哈希；train CLI禁止此模式 |
-
-修改输出协议时须同时查看`task_specs → protocol adapter → parsers → references → workflow`，不能只放宽解析器而不检查领域约束。
-
-### 3.5 提示文件：`model/prompts/`
-
-每个`Pxx_任务名.txt`对应下表任务；P04有三个实际调用。模型每次独立执行，不承接隐含对话状态。
-
-| 编号 | 文件任务名/职责 | staged_markdown配置中的thinking | 输出协议 |
-|---|---|---|---|
-| P01 | 整块相关性判断 | 关 | compact |
-| P02 | 关键词命中复核 | 关 | compact |
-| P03 | 相关内容保真摘取 | 关 | compact |
-| P04-A | 格式与集中编制要求提取 | 关 | compact |
-| P04-B | 技术评审要求提取 | 关 | compact |
-| P04-C | 其他明确编制义务提取 | 关 | compact |
-| P05 | 类别待定要求处理 | 关 | compact |
-| P06 | 补读候选关联确认 | 关，即使由目录任务触发 | strict |
-| P07 | 结构依据识别 | 开 | strict |
-| P08 | 建立或增补骨架 | 开 | Markdown |
-| P09 | 要求归属 | 开 | compact |
-| P10 | 未承接要求与骨架调整 | 开 | strict |
-| P11 | 逐章生成子目录 | 开 | Markdown |
-| P12 | 超长章节候选整合 | 开 | Markdown |
-| P13 | 跨章交叉与重复判断 | 开 | strict |
-| P14 | 已提取要求覆盖检查 | 开 | compact |
-| P15 | 目录语义结构检查 | 开 | strict |
-| P16 | 指定范围局部修正 | 开 | Markdown |
-| P17 | 项目化扩展建议 | 开 | strict |
-| P18 | 扩展建议边界检查 | 开 | compact |
-| P19 | 完整文本格式修复 | 默认关 | 保留模板/任务名；当前执行器的普通格式重试不是独立P19调用 |
-
-以上仅描述该实验配置，不能当成所有配置的默认开关。
-
-公共文件职责：`S00_公共系统规则.txt`由`render_task`每次作为system消息读取；
-`ABC_提取共用规则.txt`、`B01_目录编排业务规则.txt`、`目录节点记录格式.txt`、`补读请求记录格式.txt`是共用规则/格式资料。当前任务txt已展开相关规则，运行时并不会递归替换所有common文件占位符；修改这些资料不等于所有P模板自动更新。参见[prompts说明](../src/bid_outline/model/prompts/README.md)。
-
-### 3.6 存储与导出
-
-| 文件 | 主要职责 |
-|---|---|
-| `storage/__init__.py` | 暴露ArtifactStore和RunRepository等接口 |
-| `storage/artifact_store.py` | 规范JSON＋SHA256形成`a-*.json`；原子、非覆盖发布；envelope保存kind/data/parents/task_id；读取校验哈希 |
-| `storage/repository.py` | SQLite保存run/tasks/attempts/outlines/head；任务采用指针、版本历史及expected_parent事务比较；共享文件系统使用DELETE journal而非WAL |
-| `export/__init__.py` | 导出包接口 |
-| `export/markdown.py` | `export_result`从结果对象生成四个导出文件；`write_atomic`供导航等可再生成文件原子更新 |
-
-源码包内其余`__init__.py`承担接口导出，不另起独立业务流程。
-
-## 4. 一次实际运行如何流转
-
-```mermaid
-flowchart TD
-    A[CLI / scripts] --> B{输入类型}
-    B -->|DOCX| R[独立document-reading进程]
-    R --> D[version=2阅读产物]
-    B -->|reading| D
-    D --> E[document.readers → Document]
-    E --> F[WorkflowRunner.run]
-    F --> G[token_chunks + 完整任务预算]
-    G --> H[P01 / 必要时P02]
-    H --> I[P03精炼]
-    I --> J[P04-A/B/C → P05]
-    J --> K[P07 → P08骨架]
-    K --> L[P09归属 → 必要时P10/P08]
-    L --> M[P11逐章 → 必要时P12整合]
-    M --> N[P14/P15/P13检查 → P16修正与复查]
-    N --> O[P17 → P18扩展]
-    O --> P[result + exports]
-```
-
-1. `scripts/run_train_batch.py`找到四份DOCX，每份先启动独立阅读子进程，再启动生成CLI。`parallel-files`限制文件并发，`concurrency`传给每文件生成及阅读worker；两层并发相乘可能同时产生更多服务作业。
-2. `cli.execute`持有run锁。新运行加载配置、阅读适配；恢复从SQLite读取旧配置/状态，再由runner核对版本和配置。
-3. `WorkflowRunner.run`保存原始Document产物和manifest，规划源块，发起有限并发处理。没有要求或没有采用骨架时，后续目录步骤不会凭空启动。
-4. 业务任务经`call`构造显式材料、范围、可见ID、父产物依赖，再交执行器；补读是有界分支，不是模型自由读取整个仓库。
-5. 独立语义请求可并行；生成/修正结果返回后才由`commit`验证并集中修改目录。不得从多个协程各自直接覆盖head。
-6. 结果status取决于未处理范围、问题与目录情况；CLI最终导出并关闭执行器。`semantic_quality=not_evaluated`不随格式或单元测试通过而变更。
-
-## 5. 一次模型调用如何流转
+## 2. 当前业务主流程
 
 ```text
-runner.call(task, material, allowed, dependencies)
-  → prepare_inputs：冻结material_view/context_view，限定可见引用
-  → executor.execute：task锁；任务采用/恢复入口
-  → prepare_call_inputs：生成本次短编号
-  → render_task：任务提示＋system＋本次资料＋选定输出协议
-  → fingerprint：输入、依赖、配置、模板/解析/执行版本
-  → 已有同指纹采用结果？返回；未采用旧响应？重解析恢复
-  → TokenBudget.check：完整请求含thinking模板/生成额度/安全余量
-  → 写请求与审计，在途信号量内调用provider
-      OpenAI：POST chat/completions → ModelResponse
-      train：提交query → 保存ticket → 同ticket轮询 → ModelResponse
-  → 保存raw/model/output，再解析协议、校验引用
-  → 有界格式重试或明确失败
-  → 保存model_result产物 → SQLite commit_task采用
-  → 返回runner；必要时P06补读，再按完整新输入生成新任务身份
+cli.execute
+  → read_document（DOCX先由独立document-reading进程阅读）
+  → workflow.WorkflowRunner（别名指向TextWorkflowRunner）
+  → locate：程序扫描章节路径及正文，得到ABC候选范围
+  → organize：候选范围切块，N01-A/B/C整理为普通文本
+  → N02-A：A生成目录；N02-B：B展开列项及评价维度
+  → N03：逐批融合A/B目录草稿
+  → N04：按C逐批补充；只有C时也可以依据C起草
+  → N05：最后单独润色输出
+  → adopted run_result → export_result
 ```
 
-关键区别：
+A/B无候选时跳过；无C时跳过补充；均未生成草稿则记录问题，不调用最终润色。新路径不运行P01—P19、不进行模型归属、目录语义检查、自动修正或扩展建议。
 
-- `request.json`是执行器语义请求，`request.http.json`是实际provider载荷；train是单query扁平化，不等同于原生system/user隔离。
-- 预算拒绝可以发生在网络请求之前，此时可能只有task失败及`blocked_request_budget`产物，没有一次真实调用目录。
-- 格式重试会追加错误反馈并重新计量；不能沿用首轮预算。
-- train轮询期间仍占全局信号量；不是只限制提交瞬间。
-- 提交结果不明时不重提；已保存票据恢复轮询。终态null不能当可用正文，也不应无限等同票据变好。
-- 目前train缺finish_reason时默认stop，已知局限见公共文件；本文不把计划中的unknown分类写成已实现。
+完整性、思路清晰度、先进性等评价维度需要显式列为B目录的下级，融合和润色继续保留。程序不解析这些业务内容来伪造语义验收。
 
-## 6. 补读、恢复与目录提交的特殊分支
+## 3. 新业务模块导航
 
-**补读：** `lookup.reference_candidates`返回完整候选及范围 → P06分页确认 → 显式章节/附件范围按规则扩展 → 保存`supplement_source` → 回填原任务材料、记录直接依赖 → 限定轮次重做。候选确认分页不保证回填后的完整请求仍可容纳。
+| 文件与方法 | 职责 |
+|---|---|
+| `workflow/__init__.py` | 默认WorkflowRunner导出指向新TextWorkflowRunner |
+| `workflow/text_runner.py::run` | 校验恢复身份、定位、整理、生成、融合、补充、润色和结果状态 |
+| `text_runner.py::organize` | 规划候选范围分块，保留章节及辅助条件，整理文本；已知预算/截断可拆原负责范围 |
+| `text_runner.py::generation_batches` | 整理文本按完整段落/行及预算分批；不截掉输入 |
+| `text_runner.py::call` | 根据任务、完整材料及依赖构造身份，调用执行器，保存采用文本和阶段投影 |
+| `text_runner.py::attempt` | 阶段调用失败记录未处理范围，后续保留已有草稿 |
+| `document/locate.py::locate` | 根据RULES及SUBMISSION定位候选，小范围取邻接单元，同类重叠范围合并 |
+| `locate.py::submission_table` | C类需求表保留命中行、邻接行、表头及继承标签，记录候选行和cell来源 |
+| `model/text_tasks.py` | N任务名称、阶段、模板版本及简短文本消息渲染 |
+| `model/task_specs.py` | 统一任务注册；N任务转交text_tasks渲染，旧P任务继续旧渲染 |
+| `model/executor.py::_parse` | text-v1只检查非空正文和stop；不调用旧字段/引用解析 |
+| `model/call_view.py` | N任务显式阶段映射，逐调用导航及文本长度摘要 |
+| `export/markdown.py` | 新结果按directory_text或draft_text导出；标注最终文本/未完成草稿 |
 
-**源块缩小：** `process_chunk`仅捕获BudgetExceeded/OutputTruncated等既定信号；按旧块owned范围拆子块，派生要求不得继续当旧块已完整处理。空答案目前被归为TrainClientError，不能以此文档声称已有相同缩块恢复。
+定位命中仅为候选，不是ABC真值。章名缺失时依正文线索及邻接范围；未实现模型补读或自动展开外部附件。超长单格在`document/text_chunks.py::expandable_tables`中转为展开文本切片，保留表头及原表身份；`text_slice_basis=expanded_table_text`明确偏移仅针对展开文字，cell集合仅作原表上下文，不冒充精确单元格切片。仍无法安全处理的单元明确阻断。
 
-**目录采用：** parsed节点 → `nodes_from_records` → `validate_outline/enforce_constraints/preserve` → `make_version` → `commit_outline(expected_parent)`。写入目录文件不是采用权威；SQLite head才指向正式版本。
+## 4. 文本任务与prompt入口
 
-**局部修正：** 冻结base和RepairScope → 不冲突请求可并行 → 检查返回时base未变 → `replace_branch`限制边界 → 显式清空经过保护/承接/必要覆盖检查 → 提交 → 刷新归属和复查。预算无法安全下分就记录阻断，不丢弃冻结义务。
+| 任务 | 模板位置（`model/prompts/text/`） | 输出 |
+|---|---|---|
+| N01-A | `N01-A.txt` | 格式编制内容整理 |
+| N01-B | `N01-B.txt` | 评审项目、列项、评价维度及具体细节 |
+| N01-C | `N01-C.txt` | 补充技术材料要求及疑点 |
+| N02-A | `N02-A.txt` | A目录草稿 |
+| N02-B | `N02-B.txt` | B目录草稿，显式列出内容及评价维度 |
+| N03 | `N03.txt` | 完整融合草稿 |
+| N04 | `N04.txt` | 按C补充后的完整草稿 |
+| N05 | `N05.txt` | 润色后的目录文本 |
 
-**Markdown：** 标题级别表示父子，顺序由出现位置确定；新标题用一行依据，已有标题只按精确标题＋父身份恢复。归一化后的记录仍走上述校验，不能绕过禁止新增、保留标题、四级树和真实要求引用。
+这些是待用户共同设计的占位提示。修改prompt前先读该目录README。中间结果允许列表、段落和分析，无JSON、记录标记、节点ID、父ID或REQ映射要求。末步只要求可读目录，没有逐节点协议解析；非空文本可以是解释性回答，运行completed不证明目录存在或质量合格。
 
-## 7. 运行产物与反向排查
+文本流程不使用旧`S00`，其短system说明直接在`text_tasks.render`中。旧common文件修改不会影响新流程。新任务使用`text-v1`协议，不受strict/compact/markdown旧配置选择影响。
+
+## 5. 复用的基础功能
+
+| 模块 | 职责与边界 |
+|---|---|
+| `domain/__init__.py` | Document、DocumentElement、SourceRef、Chunk继续复用；旧RequirementGroup和OutlineVersion不作为新流程必需对象 |
+| `document/readers.py` | 适配version=2 corrected阅读产物、原始表格及诊断，保留来源 |
+| `document/token_chunks.py` | 候选范围内优先章节，超限再拆语义单元；完整请求复核 |
+| `document/chunks.py` | 负责范围拆分、表格行组、来源偏移 |
+| `document/text_chunks.py` | 新流程的超长表格文本切片投影，原阅读对象不变 |
+| `document/paragraph_context.py` | 列表和上下文条件保护 |
+| `workflow/common.py` | 稳定身份、时间、有限并发 |
+| `model/executor.py` | task锁、指纹、预算、全局信号量、调用上限、原始证据、恢复与采用 |
+| `model/budget.py` | 本地fast tokenizer、完整提示及thinking共享额度检查；不下载资源 |
+| `model/client.py` | OpenAI客户端、FakeModelClient及provider工厂 |
+| `model/train_client.py` | train提交、持久票据、轮询及响应；未知提交不盲重提 |
+| `model/audit_io.py` | 异步审计I/O |
+| `storage/artifact_store.py` | 内容寻址不可变产物，读取校验哈希 |
+| `storage/repository.py` | SQLite任务采用、运行状态；旧目录版本接口保留 |
+| `model/replay.py` | OpenAI显式精确请求复用；train仍禁止跨run复用 |
+
+来源依赖链：document → located_ranges → located_chunk → model_result → 后续model_result → run_result。来源可追到范围及阶段，没有新造逐标题要求归属。
+
+## 6. 配置、运行及恢复
+
+- `config.py`增加`text_batch_tokens=3000`，限制单次整理和A/B生成的材料量；该值尚未真实调优。
+- 上下文默认20480，max_tokens默认8192，安全余量1024。规划与执行使用同一prompt渲染和预算。
+- thinking支持N01-A/B/C、N02-A/B、N03、N04、N05。示例`configs/train.text.example.json`统一关闭thinking，待实测。
+- `scripts/run_train_batch.py --outline-thinking`同时覆盖新目录任务；旧directory-protocol参数只影响旧P任务。
+- 配置、代码版本和`flow_version=text-directory-1`须匹配才可resume，旧run不能转为新流程。恢复会重新确定性规划并复用已采用文本，已保存有效响应及train票据仍由executor恢复。
+- 融合、C补充、润色超预算时记录失败，保存完整上一版草稿；不部分截取后冒称完成。空响应失败，不当成无要求。
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src \
+ /home/u2024010436/miniforge3/envs/bid-outline-qwen-runtime-cu128/bin/python \
+ -m bid_outline run --reader reading --input /path/reading \
+ --config configs/train.text.example.json --run /path/new-run
+```
+
+仅在用户授权实测时执行上述真实调用。导出和status只读采用产物，不生成内容。
+
+## 7. 运行产物和排查
 
 ```text
-批次目录/
-  generation.config.json        本批实际配置
-  timing.json / timing.md        批次和逐文件耗时
-  01_文件名/
-    reading.log / generation.log
-    reading/                    已有阅读模块产物
-    generation/
-      manifest.json             配置、版本、阶段、统计、结果指针
-      runtime.json              在途、计数、心跳等动态状态
-      run.sqlite3 / run.lock    任务采用、目录head及进程互斥
-      artifacts/a-*.json        不可变内容寻址产物及parents
-      calls.md                  调用导航
-      calls/阶段/序号_任务_对象_attemptNN/
-        input.md / request.json / request.http.json
-        meta.json / summary.md / id_aliases.json
-        response.raw.json / response.model.json / output.txt
-        parsed.json / validation.json
-        train.ticket.json / train.submit.* / train.poll-* / train.terminal.json
-      exports/
-        backbone.md / extensions.md / unresolved.md / provenance.json
+run/
+  manifest.json / runtime.json / run.sqlite3 / run.lock
+  artifacts/a-*.json
+  calls.md
+  calls/01_organization|02_drafts|03_merge|04_supplement|05_final/...
+    request.json / request.http.json / input.md
+    response.raw.json / response.model.json / output.txt
+    parsed.json / validation.json / meta.json / summary.md
+    train.ticket.json / train.submit.* / train.poll-* / train.terminal.json
+  stages/
+    located_ranges.json
+    text_<task_hash>.md          已采用文本的可再生成投影
+    final.md                    N05已采用文本
+  exports/
+    backbone.md / unresolved.md / provenance.json
 ```
 
-不是每个失败调用都会有以上全部文件；以实际失败发生位置解释缺失。
+`stages`是投影，SQLite采用指针和artifacts是权威。新结果包含directory_text、draft_text、directory_state、located_ranges、stages及问题，不包含伪造的旧outline.nodes或assignments。失败调用可能没有全套文件。
 
-| 症状 | 先查 | 再查代码 |
-|---|---|---|
-| backbone空 | requirements、outline、unprocessed_ranges、P08是否真实发送 | `runner.run/build_skeleton`、`budget.py` |
-| 条目少、只有通用目录 | P03失败/摘取内容、ABC要求、P11是否采用 | `_process_chunk`、train终态、P03/P04提示 |
-| 服务说成功但无内容 | `train.terminal.json`实际answer及票据 | `train_client._response` |
-| 字段/ID错误 | output、validation、alias映射、输入可见对象 | 协议适配器、`parsers.py`、`references.py` |
-| 修改被拒绝 | unprocessed、repair_rejected、目录历史与约束 | `outline.py`、`source_lists.py`、`review_and_repair` |
-| 历史说明中的NODE编号不对 | 原采用调用id_aliases、历史来源对照 | `history_view.py` |
-| 并发不足或耗时高 | runtime峰值、任务数、补读重复、每次request_seconds | `bounded_map`、executor信号量、train轮询 |
-| 恢复/复用不生效 | 配置/代码版本、fingerprint、accepted_artifact_id | `cli.execute`、`runner.run`、executor、replay |
-
-检查目录节点数应读取`provenance.json → outline → nodes`；`len(outline)`只会得到版本对象字段数，不能当节点数。
-
-## 8. 脚本与测试定位
-
-| 文件/测试组 | 维护用途 |
+| 问题 | 先查 |
 |---|---|
-| `scripts/run_train_batch.py` | 四DOCX、阅读/生成两个进程阶段、每文件并发、thinking/protocol覆盖、完整预算传给reader、时间统计 |
-| `scripts/run_gpu_test.py` | 单文件GPU服务探测、生成配置、后台状态/恢复、旧布局兼容等；详见scripts说明 |
-| `tests/integration/test_workflow.py` | 固定模型响应驱动全流程及依赖/恢复/修正 |
-| `test_foundation.py`、`test_workflow_boundaries.py` | 基础对象、阅读、分块、截断/边界 |
-| `test_token_planning.py`、`test_context_and_reference_scope.py` | token窗口、章节/表格归属、条件及引用范围 |
-| `test_execution.py`、`test_train_provider.py`、`test_explicit_replay.py` | 执行器、provider wire、票据、重试/恢复/显式复用 |
-| `test_reference_contracts.py`、`test_id_aliases.py`、`test_historical_reference_context.py` | 类型引用、局部编号、正文保真及历史语境 |
-| `test_contracts_text.py`、`test_compact_protocol.py`、`test_prompt_views_v08.py`、`test_staged_markdown.py` | 提示视图、strict/compact/Markdown、thinking逐任务和真实wire模拟 |
-| `test_directory_modification_protocol.py`、`test_review_correctness.py`、`test_adaptive_review_scope.py`、`test_remaining_review_scopes.py` | 来源清单、保留/清空、修正范围、覆盖复查、负叶关键词复核 |
-| `test_parallel_workflow.py`、`test_execution_efficiency.py`、`test_explicit_dependencies.py` | 并发顺序、集中提交、I/O与索引、直接依赖 |
-| `test_real_format_failures.py`及fixtures | 已知真实格式故障的离线回归，不等于重跑真实模型 |
-| `test_batch_script.py`、`test_gpu_script.py`、`test_train_batch_timing.py`、`test_reader_vllm_entry.py`、`test_readable_audit_layout.py` | CLI脚本、计时、reader参数及调用导航 |
+| 候选不对或遗漏 | located_ranges的reason、来源element/cell和对应RULES/SUBMISSION |
+| ABC内容不干净 | N01输入、output及对应原文范围；占位prompt |
+| 目录过粗或评价维度丢失 | N01-B、N02-B、N03、N05之间的文本与依赖 |
+| 无最终结果 | unprocessed_ranges、N05是否发出、完整预算及上一版draft_text |
+| 服务成功却无内容 | train.terminal.json实际answer及finish_reason；缺finish_reason仍默认stop是已知provider风险 |
+| 恢复未命中 | flow/code/config、fingerprint及任务采用指针 |
 
-修改时尽量从对应契约测试开始。文档改动只需核对链接、文件清单和接口事实；不要为文档维护触发真实服务实验。
+completed仅表示文本调用链执行成功，不表示已经完整识别ABC、生成有效目录或通过语义质量验收。语义质量始终not_evaluated。
 
-## 9. 文档维护检查项
+## 8. 测试与历史模块
 
-增加或拆分源码文件：更新第3节；新增任务：同步任务表、thinking策略、协议支持与测试；
-更改run产物：更新第7节；更改默认配置/服务事实：更新公共文件，保留来源与日期；
-历史报告中“当前”一词按其报告日期理解，不能覆盖当前实现快照。
+`tests/integration/test_text_workflow.py`覆盖新入口、定位、表格候选缩小、普通文本衔接、缺类、C独立生成、失败保留草稿、已知截断缩块、恢复及只读导出。其固定响应验证程序行为，不能作为真实模型能力证据。
+
+共享执行、provider、token、存储测试继续适用。`test_contracts_text`区分新文本渲染与旧转义协议；旧记录边界检查只针对P模板。`test_workflow_boundaries`明确导入旧runner以保留旧边界回归。
+
+旧业务实现仍在`workflow/runner.py`，与`outline.py`、`source_lists.py`、`context.py`、`history_view.py`、`repair_scope.py`及P01—P19模板组成历史严格流程。`parsers.py`、`references.py`、`compact_protocol.py`、`markdown_directory.py`仍供旧任务测试及对照使用。不要将这些模块的旧业务链路当成当前CLI流程；不要为维护新文本流程重新引入其模型字段约束。
+
+修改文件职责或流程时同步本导引；修改外部接口、预算、thinking、恢复和产物时同步公共信息、样例配置和相关测试。历史报告保留原有版本边界。

@@ -79,6 +79,9 @@ async def run(args):
     if getattr(args, 'outline_thinking', None):
         data['thinking_by_task'].update({f'P{i:02d}': args.outline_thinking == 'on'
                                          for i in range(7, 19)})
+        from bid_outline.model.text_tasks import TASKS
+        data['thinking_by_task'].update({task: args.outline_thinking == 'on'
+                                        for task in TASKS if not task.startswith('N01')})
     if getattr(args, 'directory_protocol', None):
         data['directory_protocol'] = args.directory_protocol
     config = AppConfig.model_validate(data)
@@ -218,10 +221,10 @@ def main():
     parser.add_argument('--thinking', choices=['config', 'on', 'off'], default='config',
                         help='config preserves per-task switches; on/off overrides all generation tasks')
     parser.add_argument('--reader-thinking', choices=['on', 'off'], help='Independent document-reading switch')
-    parser.add_argument('--outline-thinking', choices=['on', 'off'], help='Override P07-P18 after global switch')
+    parser.add_argument('--outline-thinking', choices=['on', 'off'], help='Override directory generation thinking after global switch')
     parser.add_argument('--directory-protocol', choices=['strict', 'markdown-v1'],
                         help='Output format of P08/P11/P12/P16; default from config')
-    parser.add_argument('--config', type=Path, default=ROOT / 'configs/train.thinking.example.json')
+    parser.add_argument('--config', type=Path, default=ROOT / 'configs/train.text.example.json')
     parser.add_argument('--reader-base-url', default='http://10.21.150.137:50007/v1')
     parser.add_argument('--reader-model', default='qwen35')
     parser.add_argument('--tokenizer', type=Path, default=Path('/groups/g900403/home/share/zxc/models/Qwen3.5-27B'))

@@ -40,7 +40,7 @@ def overview(root: Path, manifest: dict) -> None:
     lines = ['# Run overview', '', f"Status: **{execution.get('status', 'created')}**", '',
              f"Input: {manifest.get('request', {}).get('input', '')}", '',
              '[Manifest](manifest.json) · [Events](events.jsonl) · [Calls](generation/calls.md)', '',
-             '[Backbone](results/backbone.md) · [Extensions](results/extensions.md) · [Unresolved](results/unresolved.md)', '',
+             '[Backbone](results/backbone.md) · [Unresolved](results/unresolved.md) · [Provenance](results/provenance.json)', '',
              '| Stage | Status | Exit | Log |', '|---|---|---|---|']
     for name, stage in manifest.get('stages', {}).items():
         log = stage.get('log', '')

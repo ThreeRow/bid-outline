@@ -28,6 +28,7 @@ class AppConfig(BaseModel):
     max_task_calls: int = Field(8, gt=0)
     max_run_calls: int = Field(2000, gt=0)
     chunk_chars: int = Field(5000, gt=0)
+    text_batch_tokens: int = Field(3000, gt=0)
     tokenizer: str | None = None
     screening_reserve_tokens: int = Field(256, ge=0)
     extra_body: dict = Field(default_factory=dict)
@@ -54,6 +55,9 @@ class AppConfig(BaseModel):
         return self.extra_body.get('chat_template_kwargs', {}).get('enable_thinking')
 
     def protocol_for(self, task_type: str) -> str:
+        from .model.text_tasks import TASKS
+        if task_type in TASKS:
+            return 'text-v1'
         from .model.compact_protocol import effective_protocol
         return effective_protocol(task_type, self.prompt_protocol, self.directory_protocol)
 

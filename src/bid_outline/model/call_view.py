@@ -9,6 +9,9 @@ from .task_specs import TASK_NAMES
 
 
 def stage(task: str, scope: str = '') -> str:
+    from .text_tasks import TASKS
+    if task in TASKS:
+        return TASKS[task][1]
     number = int(task[1:3])
     if number <= 2:
         return '01_screening'
@@ -73,6 +76,8 @@ def publish(run_dir: Path, repository, call_id: str) -> None:
         if (path / 'parsed.json').exists():
             parsed = json.loads((path / 'parsed.json').read_text(encoding='utf-8'))
             fields = parsed.get('fields', {})
+            if 'text' in parsed:
+                body += f"文本结果：{len(parsed['text'])}字符；语义质量未评估。\n\n"
             decisions = {key: value for key, value in fields.items()
                          if key in ('判断', '处理结果', '提取结果', '状态', '结论', '检查结论', '处理结论', '结果')}
             counts = {key: len(value) for key, value in parsed.get('records', {}).items()}

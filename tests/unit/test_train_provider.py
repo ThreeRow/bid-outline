@@ -53,6 +53,33 @@ def test_query_preserves_independent_roles_and_retry_feedback():
     with pytest.raises(ValueError):train_query([{'role':'tool','content':'bad'}])
 
 
+def test_text_task_uses_train_ticket_and_accepts_unstructured_answer():
+    async def run():
+        seen = []
+        answer = '先整理评审内容。\n总体技术方案\n    完整性\n    先进性'
+        def server(request):
+            body = json.loads(request.content)
+            seen.append(request.url.path)
+            if request.url.path.endswith('/chat_train'):
+                query = body['query_list'][0]
+                assert query['enable_thinking'] == 0
+                assert '允许引用ID' not in query['query']
+                return httpx.Response(200, json={'status': 1, 'responseId': 'text-job'})
+            return httpx.Response(200, json=terminal(answer=answer))
+        e, repo, path = await executor(server, config(thinking_by_task={'N02-B': False}))
+        try:
+            result = await e.execute('N02-B', {'material': '总体技术方案，完整性、先进性'}, task_id='t')
+            assert result['text'] == answer
+            assert seen == ['/api/v2/chat_train', '/api/v2/get_resp_data']
+            call = path / 'calls' / repo.list_attempts()[0]['call_id']
+            assert (call / 'train.ticket.json').exists()
+            assert json.loads((call / 'meta.json').read_text())['output_protocol'] == 'text-v1'
+        finally:
+            await e.aclose()
+            repo.close()
+    asyncio.run(run())
+
+
 def test_wire_thinking_id_selection_partial_not_adopted_and_full_audit():
     async def run():
         seen=[]

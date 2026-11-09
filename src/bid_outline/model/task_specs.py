@@ -30,6 +30,8 @@ TASK_NAMES = {
     'P18': '扩展建议边界检查',
     'P19': '完整文本格式修复',
 }
+from .text_tasks import TASKS as TEXT_TASKS
+TASK_NAMES.update({key: value[0] for key, value in TEXT_TASKS.items()})
 TASK_TYPES = tuple(TASK_NAMES)
 
 
@@ -51,6 +53,9 @@ def get_spec(task_type: str) -> TaskSpec:
     """Return the immutable contract identity of a supported task."""
     if task_type not in TASK_TYPES:
         raise ValueError(f'Unknown task: {task_type}')
+    if task_type in TEXT_TASKS:
+        from .text_tasks import VERSION
+        return TaskSpec(task_type, version=VERSION, parser_version='text-1')
     return TaskSpec(task_type)
 
 
@@ -69,6 +74,9 @@ def render_task(task_type: str, inputs: dict[str, Any], *, view_version: str = '
                 protocol: str = 'strict', directory_protocol: str = 'strict') -> list[dict[str, str]]:
     """Render a complete task with explicit, reversibly escaped data boundaries."""
     get_spec(task_type)
+    if task_type in TEXT_TASKS:
+        from .text_tasks import render
+        return render(task_type, inputs)
     if view_version not in {'legacy-json', 'readable-v1'}:
         raise ValueError(f'Unknown prompt view: {view_version}')
     render = render_readable_view if view_version == 'readable-v1' else render_view

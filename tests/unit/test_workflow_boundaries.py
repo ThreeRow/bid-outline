@@ -13,7 +13,7 @@ from bid_outline.domain import Document, DocumentElement, OutlineConstraint, Out
 from bid_outline.export import export_result
 from bid_outline.model.client import FakeModelClient, ModelResponse
 from bid_outline.storage import ArtifactStore
-from bid_outline.workflow import WorkflowRunner
+from bid_outline.workflow.runner import WorkflowRunner
 from bid_outline.workflow.common import bounded_map
 from bid_outline.workflow.outline import make_version, replace_branch, retain_skeleton_nodes
 

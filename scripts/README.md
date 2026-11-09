@@ -1,5 +1,10 @@
 # GPU 测试脚本
 
+2026-11-09：生成CLI默认使用0.12.0文本目录流程。推荐新配置`configs/train.text.example.json`，只生成目录；新prompt为待用户定稿的占位版本，未进行真实质量验收。阅读阶段保持独立。新运行须使用新目录，旧批次不能跨代码/流程版本resume。
+
+`run_train_batch.py --outline-thinking`覆盖N02-A/B、N03、N04、N05（也保留旧P配置设置），不覆盖N01-A/B/C。旧`--directory-protocol`仅影响P任务，对新文本任务无效。`text_batch_tokens`从配置传入，默认3000；旧`chunk_chars`不控制新生成流程的候选token分块。当前运行产物见代码导引，以下早期脚本示例中的旧协议或节点统计按其版本理解。
+
+
 在已启动 vLLM 的 GPU 节点执行。脚本使用当前 Python，不重启或修改模型服务。
 
 ```bash
