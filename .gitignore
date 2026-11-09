@@ -1,0 +1,46 @@
+# Python caches, local environments and build outputs
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+*.egg-info/
+/build/
+/dist/
+
+# Credentials and machine-local configuration; keep example configurations
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+/configs/*
+!/configs/*.example.json
+
+# Runtime output stays on disk, outside version control
+/runs/
+/logs/
+/reviews/
+/test_inputs/
+/test_materials/
+/docs/*
+!/docs/CODE_GUIDE.md
+*.log
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+.pending-*
+
+# Local editor and OS files
+.idea/
+.vscode/
+.DS_Store
+*~
+*.swp

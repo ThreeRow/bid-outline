@@ -1,0 +1,21 @@
+{
+  "case": "jiangsu",
+  "title": "江苏法院：网络安全服务",
+  "historical_source": "output_integrated/20261025_fusion_e2e/jiangsu/reading",
+  "historical_status": "incomplete",
+  "historical_stage": "finished",
+  "document_version": 2,
+  "structure_status": "unresolved",
+  "semantic_quality": "not_evaluated",
+  "blocks": 601,
+  "sections": 53,
+  "tables": 13,
+  "issue_count": 4,
+  "issue_codes": {
+    "table_cell_text_difference": 2,
+    "secondary_mixed_numbering_review": 2
+  },
+  "selected_chapter": "chapters/S00033.md",
+  "selected_table": "T0005",
+  "kind": "historical_output_not_current_validation"
+}

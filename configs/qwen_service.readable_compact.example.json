@@ -1,0 +1,16 @@
+{
+  "base_url": "http://10.21.150.137:50007/v1",
+  "model": "qwen35",
+  "prompt_view": "readable-v1",
+  "prompt_protocol": "compact-v1",
+  "max_in_flight": 2,
+  "context_tokens": 20480,
+  "service_context_tokens": 20480,
+  "tokenizer": "/groups/g900403/home/share/zxc/models/Qwen3.5-27B",
+  "max_tokens": 4096,
+  "transport_retries": 0,
+  "format_retries": 1,
+  "supplement_rounds": 1,
+  "repair_rounds": 1,
+  "max_run_calls": 80
+}

@@ -1,0 +1,81 @@
+{
+  "status": "incomplete",
+  "issues": [
+    {
+      "code": "textbox_flattened",
+      "path": "/w:document/w:body/w:p[592]"
+    },
+    {
+      "code": "textbox_flattened",
+      "path": "/w:document/w:body/w:p[601]"
+    },
+    {
+      "code": "table_cell_text_difference",
+      "table_id": "T0001",
+      "cell_id": "C0032",
+      "docling_text": "投标人应根据技术需求书，在投标文件中提供其满足技术要\n求的服务内容、报价（格式见附件）。\n当众宣读的开标一览表中的报价如与投标文件中的报价不一\n致，评标时以当众宣读的开标一览表为准。",
+      "word_text": "1) 投标人应根据技术需求书，在投标文件中提供其满足技术要\n求的服务内容、报价（格式见附件）。\n2) 当众宣读的开标一览表中的报价如与投标文件中的报价不一\n致，评标时以当众宣读的开标一览表为准。"
+    },
+    {
+      "code": "paragraph_text_reconciled",
+      "docling_block_ids": [
+        "B00528",
+        "B00529",
+        "B00530",
+        "B00531",
+        "B00532",
+        "B00533",
+        "B00534",
+        "B00535",
+        "B00536",
+        "B00537"
+      ],
+      "word_ids": [
+        "W00499",
+        "W00500"
+      ],
+      "docling_text": "提供投标人须知规定的全部投标文件（正本[\n1\n]份，副本[\n5\n]份、电子版[\n1\n]份）。\n所附投标价格表中规定的应提供的货物及服务的投标报价为：     。（\n注明币种，并用文字和数字表示的投标报价\n）。",
+      "word_text": "1) 提供投标人须知规定的全部投标文件（正本[ 1 ]份，副本[ 5 ]份、电子版[ 1 ]份）。\n2) 所附投标价格表中规定的应提供的货物及服务的投标报价为：     。（注明币种，并用文字和数字表示的投标报价）。"
+    },
+    {
+      "code": "paragraph_text_reconciled",
+      "docling_block_ids": [
+        "B00540",
+        "B00541",
+        "B00542"
+      ],
+      "word_ids": [
+        "W00503"
+      ],
+      "docling_text": "本投标有效期为自开标日起\n90\n个日历日。",
+      "word_text": "5) 本投标有效期为自开标日起90个日历日。"
+    },
+    {
+      "code": "paragraph_text_reconciled",
+      "docling_block_ids": [
+        "B00601",
+        "B00602",
+        "B00603"
+      ],
+      "word_ids": [
+        "W00550"
+      ],
+      "docling_text": "我公司承诺：在递交投标文件截止时间之前将投标文件送达下述指定地点：\n南京市鼓楼区郑和中路118号（南京长江国际航运服务中心D座）12楼1201室\n。如未按时送达，视为我司自行放弃本项目投标。",
+      "word_text": "7、 我公司承诺：在递交投标文件截止时间之前将投标文件送达下述指定地点：南京市鼓楼区郑和中路118号（南京长江国际航运服务中心D座）12楼1201室。如未按时送达，视为我司自行放弃本项目投标。"
+    },
+    {
+      "code": "word_content_recovered",
+      "word_id": "W00556",
+      "block_id": "BW00556"
+    },
+    {
+      "code": "docling_block_unmatched",
+      "block_id": "B00610"
+    }
+  ],
+  "block_count": 715,
+  "section_count": 80,
+  "table_count": 33,
+  "image_count": 2,
+  "semantic_quality": "not_evaluated"
+}

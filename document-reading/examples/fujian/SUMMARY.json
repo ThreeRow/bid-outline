@@ -1,0 +1,20 @@
+{
+  "case": "fujian",
+  "title": "福建：考场实时智能巡查云服务",
+  "historical_source": "output_integrated/20261025_fusion_e2e/fujian/reading",
+  "historical_status": "incomplete",
+  "historical_stage": "finished",
+  "document_version": 2,
+  "structure_status": "unresolved",
+  "semantic_quality": "not_evaluated",
+  "blocks": 1149,
+  "sections": 56,
+  "tables": 25,
+  "issue_count": 1,
+  "issue_codes": {
+    "secondary_mixed_numbering_review": 1
+  },
+  "selected_chapter": "chapters/S00027.md",
+  "selected_table": "T0015",
+  "kind": "historical_output_not_current_validation"
+}

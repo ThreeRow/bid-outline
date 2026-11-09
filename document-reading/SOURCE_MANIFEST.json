@@ -1,0 +1,341 @@
+{
+  "snapshot_date": "2026-11-03",
+  "source_commit": "8560c1fe78ef057806f7658d79955db33e4c233e",
+  "python_files": 47,
+  "reading_core_files": 20,
+  "prompt_files": 7,
+  "files": [
+    {
+      "path": "outline_gen/__init__.py",
+      "source_sha256": "29d5795b2ea17c75f15b0344fe700ad4b915d3cf27d67c684e66b835cb13db27",
+      "copy_sha256": "29d5795b2ea17c75f15b0344fe700ad4b915d3cf27d67c684e66b835cb13db27",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/cli/__init__.py",
+      "source_sha256": "2dc36ced5feb0aecf734c500ed659a82a8b5ef2eb2e3ab3a5fc905dbb96f4d1e",
+      "copy_sha256": "dd91b4404875c027b106f149723522bf44af4cc0a0c57c64e47ad6311ea2f69d",
+      "changes": [
+        "精简为阅读所需接口：取消旧生成入口或仅保留问题记录工具"
+      ]
+    },
+    {
+      "path": "outline_gen/cli/read_document.py",
+      "source_sha256": "3e98366fe53c64f971788ff4eeedfbc86a407cb451c4060d476cff110e218f92",
+      "copy_sha256": "3e98366fe53c64f971788ff4eeedfbc86a407cb451c4060d476cff110e218f92",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/config.py",
+      "source_sha256": "db7500b4b0daaf98b6bc4898131390a0a8a95dadf3d971f65cad792dabaf68a7",
+      "copy_sha256": "72b73d8f0f7d0e977cb7b45d29d3eea6d587bda8e745ac32ed157f328f1b8b08",
+      "changes": [
+        "清空内置API密钥默认值"
+      ]
+    },
+    {
+      "path": "outline_gen/document_reading/__init__.py",
+      "source_sha256": "d47082de072abd7753aa3898d312fc3eb13d3e5fd06fb086b6d0c0c22586c532",
+      "copy_sha256": "d47082de072abd7753aa3898d312fc3eb13d3e5fd06fb086b6d0c0c22586c532",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/alignment.py",
+      "source_sha256": "90b5ddb3a5c38ba29194b952e799c1dc46ad9228625316992d7b26faf1ac133a",
+      "copy_sha256": "90b5ddb3a5c38ba29194b952e799c1dc46ad9228625316992d7b26faf1ac133a",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/config.py",
+      "source_sha256": "e8d4a9f7d000a18a660051bd01ad1f021e6f49d9760e01a849a6ff99e6a747aa",
+      "copy_sha256": "e8d4a9f7d000a18a660051bd01ad1f021e6f49d9760e01a849a6ff99e6a747aa",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/docling_reader.py",
+      "source_sha256": "d7d495b9a2cda5d5eb687f5ee3e9c3296dee81887a0f472e8ae9ce6a34f150fc",
+      "copy_sha256": "d7d495b9a2cda5d5eb687f5ee3e9c3296dee81887a0f472e8ae9ce6a34f150fc",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/docling_worker.py",
+      "source_sha256": "feffc74db2d4e8d8d6b0417fb14e8e646ba6aa706fe3be5e7aec035799a4eed3",
+      "copy_sha256": "feffc74db2d4e8d8d6b0417fb14e8e646ba6aa706fe3be5e7aec035799a4eed3",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/export.py",
+      "source_sha256": "f5cc08fedcd14323a1784d4ae991f432ab57bf95355d4870061de2b4c0305a27",
+      "copy_sha256": "f5cc08fedcd14323a1784d4ae991f432ab57bf95355d4870061de2b4c0305a27",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/heading_candidates.py",
+      "source_sha256": "b359b66f1804267091430b5a15990c5bbffdf300c5b085d07d908529d555ae76",
+      "copy_sha256": "b359b66f1804267091430b5a15990c5bbffdf300c5b085d07d908529d555ae76",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/heading_inputs.py",
+      "source_sha256": "85b18ff3be048174ba6862779f42c36f2d4b672b799a0198c27df33afee80570",
+      "copy_sha256": "85b18ff3be048174ba6862779f42c36f2d4b672b799a0198c27df33afee80570",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/heading_recognition.py",
+      "source_sha256": "3f69aedf02da5b35bccdf1883dbd6fdc2b3b921e8e4bcae6f02e0e0f333695b1",
+      "copy_sha256": "3f69aedf02da5b35bccdf1883dbd6fdc2b3b921e8e4bcae6f02e0e0f333695b1",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/layered_headings.py",
+      "source_sha256": "615ef03293bb9234f143c45db04cd4dd5430a73e1cf6856489cf57ed51817627",
+      "copy_sha256": "615ef03293bb9234f143c45db04cd4dd5430a73e1cf6856489cf57ed51817627",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/model_calls.py",
+      "source_sha256": "eb6a5d830799bb53be498ba16c5b2bf28e3c5bc3a65239b9d008df61e1347df0",
+      "copy_sha256": "eb6a5d830799bb53be498ba16c5b2bf28e3c5bc3a65239b9d008df61e1347df0",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/models.py",
+      "source_sha256": "a87c97d1245c85af5849e73bf12aba31763ebae5572fd09b7f3b2fec1b39c964",
+      "copy_sha256": "a87c97d1245c85af5849e73bf12aba31763ebae5572fd09b7f3b2fec1b39c964",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/pipeline.py",
+      "source_sha256": "c593ed39cdad77387fa8c44896ff4aa0c23f4d12aae70fa8936161a5dcbb139e",
+      "copy_sha256": "c593ed39cdad77387fa8c44896ff4aa0c23f4d12aae70fa8936161a5dcbb139e",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/render.py",
+      "source_sha256": "c7fae2756cebf3020712956cebdbeb1a01c23e99d4fd8a0885d7c65720814a55",
+      "copy_sha256": "c7fae2756cebf3020712956cebdbeb1a01c23e99d4fd8a0885d7c65720814a55",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/sections.py",
+      "source_sha256": "c93151e8a26f51b10d01475a3f1ae96e24b541a30a93f5149969c22aadc2be16",
+      "copy_sha256": "c93151e8a26f51b10d01475a3f1ae96e24b541a30a93f5149969c22aadc2be16",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/structure.py",
+      "source_sha256": "9b78405f02f87668b2a22d81a4ebb7f1d2ce86b0a9c75371e1e604ae51bfa355",
+      "copy_sha256": "9b78405f02f87668b2a22d81a4ebb7f1d2ce86b0a9c75371e1e604ae51bfa355",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/table_extraction.py",
+      "source_sha256": "59b402549f21618138d94e614500a97184079ba545a34b6614e06799fa4d22e0",
+      "copy_sha256": "59b402549f21618138d94e614500a97184079ba545a34b6614e06799fa4d22e0",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/table_render.py",
+      "source_sha256": "9525e7b6afc889b52fbdc59e9ebc3e21c51dd662170f6dc5a5dce92ea6a57ce3",
+      "copy_sha256": "9525e7b6afc889b52fbdc59e9ebc3e21c51dd662170f6dc5a5dce92ea6a57ce3",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/validation.py",
+      "source_sha256": "f18a0c58191c3cccb14bd7f399ae381fd8da43d7ef4e6c42f44ba5a771034f27",
+      "copy_sha256": "f18a0c58191c3cccb14bd7f399ae381fd8da43d7ef4e6c42f44ba5a771034f27",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/document_reading/word_structure.py",
+      "source_sha256": "b35fdaef985924d443de08b986f54aaef435f5328d698f9fa345c17cf1e13414",
+      "copy_sha256": "b35fdaef985924d443de08b986f54aaef435f5328d698f9fa345c17cf1e13414",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/domain/__init__.py",
+      "source_sha256": "3d3ebfe5e0d5e6d628bfdbd2a9f840b8a8d6715dab2b415f21808ddadededac5",
+      "copy_sha256": "3d3ebfe5e0d5e6d628bfdbd2a9f840b8a8d6715dab2b415f21808ddadededac5",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/domain/material_boundary.py",
+      "source_sha256": "22719566553a7b6301e67509121a10c854a4266655f0d05430e8ed52363fba6a",
+      "copy_sha256": "22719566553a7b6301e67509121a10c854a4266655f0d05430e8ed52363fba6a",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/domain/models.py",
+      "source_sha256": "b85d2cddcd5f8c55adf198452f59965bba0b4619e63383951cec81971f01a51a",
+      "copy_sha256": "b85d2cddcd5f8c55adf198452f59965bba0b4619e63383951cec81971f01a51a",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/domain/score_ownership.py",
+      "source_sha256": "5eaf07d799b93f4933e048ed145a42e44a08c556423f2eb2e857c8991cdb5d43",
+      "copy_sha256": "5eaf07d799b93f4933e048ed145a42e44a08c556423f2eb2e857c8991cdb5d43",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/domain/tree.py",
+      "source_sha256": "46134fe3458e4da8d38dc413ac030bb97df3013dc4503738e828b230dcfc1338",
+      "copy_sha256": "46134fe3458e4da8d38dc413ac030bb97df3013dc4503738e828b230dcfc1338",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/io/__init__.py",
+      "source_sha256": "abcdeb7fe88f29b5cea966a29699ed280678e2c3ab6163c0c9c9ed0d9ff3fd04",
+      "copy_sha256": "abcdeb7fe88f29b5cea966a29699ed280678e2c3ab6163c0c9c9ed0d9ff3fd04",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/io/fs.py",
+      "source_sha256": "817c8ef8b8db89a7035ffbe8c8b4a8381b54293e766e1b1627b494149855ff4c",
+      "copy_sha256": "817c8ef8b8db89a7035ffbe8c8b4a8381b54293e766e1b1627b494149855ff4c",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/io/json_extract.py",
+      "source_sha256": "19c96d1b84d76cdb64b203bf7b25984ba14038c27696b66d85915817b5783507",
+      "copy_sha256": "19c96d1b84d76cdb64b203bf7b25984ba14038c27696b66d85915817b5783507",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/io/prompts.py",
+      "source_sha256": "4c4cdc8f47a4017d55adcd14e45aff018f66a24c8a8a99172ab19d13d8dc91fe",
+      "copy_sha256": "4c4cdc8f47a4017d55adcd14e45aff018f66a24c8a8a99172ab19d13d8dc91fe",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/runtime/__init__.py",
+      "source_sha256": "f02bb2ede3f8efe254eb091adc6a028981f4a68a058463ddf69a41145dd704ee",
+      "copy_sha256": "7f6d2ac43e2022a89b8852d52960cbb27d94e2b3bb23a3b6354db844846feb69",
+      "changes": [
+        "精简为阅读所需接口：取消旧生成入口或仅保留问题记录工具"
+      ]
+    },
+    {
+      "path": "outline_gen/runtime/batch.py",
+      "source_sha256": "dc3056033c1a9065ef6bcce7628e1cb8331a4392e5dcf687f7586eb81e101fcf",
+      "copy_sha256": "dc3056033c1a9065ef6bcce7628e1cb8331a4392e5dcf687f7586eb81e101fcf",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/runtime/call_policy.py",
+      "source_sha256": "31bed10f74df345cc5f9687df8f32116dff94fdadd0beb4626680a258758ef53",
+      "copy_sha256": "31bed10f74df345cc5f9687df8f32116dff94fdadd0beb4626680a258758ef53",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/runtime/errors.py",
+      "source_sha256": "e66a7141d1176d6a49369f0242615812ff8d212d8e66cd034c816d2ab58be352",
+      "copy_sha256": "e66a7141d1176d6a49369f0242615812ff8d212d8e66cd034c816d2ab58be352",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/runtime/factory.py",
+      "source_sha256": "25839dc110ecd00e244062f641a8b996203b712bf71c88c6fe42f7f9cc36d1ce",
+      "copy_sha256": "25839dc110ecd00e244062f641a8b996203b712bf71c88c6fe42f7f9cc36d1ce",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/runtime/generation_recovery.py",
+      "source_sha256": "c760dcd537c3c26b324feecf08a6b5235bc69d96e44f3f8831cf699b884790fa",
+      "copy_sha256": "c2337492e8857d8f995e75b2e8844659db5bd86d50adf1d37aa00f2d744c47d3",
+      "changes": [
+        "精简为阅读所需接口：取消旧生成入口或仅保留问题记录工具"
+      ]
+    },
+    {
+      "path": "outline_gen/runtime/langchain_adapter.py",
+      "source_sha256": "333b184db41e053bede9947b79d5d56f7c4bc1e7e58d78512a16037b62928d37",
+      "copy_sha256": "333b184db41e053bede9947b79d5d56f7c4bc1e7e58d78512a16037b62928d37",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/runtime/openai_api.py",
+      "source_sha256": "463d6d40a4a9ff1ab4499cfa9c8eb52d3e3853728e7615214df99783ffd902ed",
+      "copy_sha256": "463d6d40a4a9ff1ab4499cfa9c8eb52d3e3853728e7615214df99783ffd902ed",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/runtime/output_issues.py",
+      "source_sha256": "e2880b98aebbecf55213c017557d88522caabc1fba98b86e18734bf662d52cc3",
+      "copy_sha256": "e2880b98aebbecf55213c017557d88522caabc1fba98b86e18734bf662d52cc3",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/runtime/port.py",
+      "source_sha256": "8083e6ecc19b9052ce6fc6f5693244befb1ab4f192e51d6ac2a6e2cdad655d28",
+      "copy_sha256": "8083e6ecc19b9052ce6fc6f5693244befb1ab4f192e51d6ac2a6e2cdad655d28",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/runtime/response_recovery.py",
+      "source_sha256": "ceeba7ae27d6807047a829b415b53e5cce9482297185a8eb83832d4d8c465cc1",
+      "copy_sha256": "ceeba7ae27d6807047a829b415b53e5cce9482297185a8eb83832d4d8c465cc1",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/runtime/stub.py",
+      "source_sha256": "a42255d0bf35764ce8a415aeea98178937af878d0af9c22e26f4972f3296147e",
+      "copy_sha256": "a42255d0bf35764ce8a415aeea98178937af878d0af9c22e26f4972f3296147e",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/runtime/tokenization.py",
+      "source_sha256": "87e9451c3d0c62bbc3b64233965676d73f8e537371825325048553cc31323081",
+      "copy_sha256": "87e9451c3d0c62bbc3b64233965676d73f8e537371825325048553cc31323081",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/runtime/train_api.py",
+      "source_sha256": "bee100c2679a7416c47adbe0c4548e138a73bceb983850837834e2245775761d",
+      "copy_sha256": "bee100c2679a7416c47adbe0c4548e138a73bceb983850837834e2245775761d",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/prompts/document_primary_sys.md",
+      "source_sha256": "00450367f62c4e211b1b9cf14726fb77e349461630d548b4e093834e6752228e",
+      "copy_sha256": "00450367f62c4e211b1b9cf14726fb77e349461630d548b4e093834e6752228e",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/prompts/document_secondary_compare_sys.md",
+      "source_sha256": "c433095e98dbac559df5b81c4ec89afd905737e6696409c36075f92c6becf690",
+      "copy_sha256": "c433095e98dbac559df5b81c4ec89afd905737e6696409c36075f92c6becf690",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/prompts/document_secondary_final_sys.md",
+      "source_sha256": "b2a618700912cf4769c725ea9b62cd379f0fbbdc079c001b2d8b406ab2985d98",
+      "copy_sha256": "b2a618700912cf4769c725ea9b62cd379f0fbbdc079c001b2d8b406ab2985d98",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/prompts/document_secondary_refined_sys.md",
+      "source_sha256": "cf52bc4e483769336d5ce3b1264b21fb89cb70474079defdcc0a2e725d7c88ca",
+      "copy_sha256": "cf52bc4e483769336d5ce3b1264b21fb89cb70474079defdcc0a2e725d7c88ca",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/prompts/document_secondary_sys.md",
+      "source_sha256": "4d57ef9b88c0208d3e6e101a8609d777587d4ce43b27fc1c67de571680376edd",
+      "copy_sha256": "4d57ef9b88c0208d3e6e101a8609d777587d4ce43b27fc1c67de571680376edd",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/prompts/document_table_sys.md",
+      "source_sha256": "93dc6675fece4a31f348dcb1a3d778d7d764fd4034bac58b156446bf2a8041a2",
+      "copy_sha256": "93dc6675fece4a31f348dcb1a3d778d7d764fd4034bac58b156446bf2a8041a2",
+      "changes": []
+    },
+    {
+      "path": "outline_gen/prompts/document_toc_sys.md",
+      "source_sha256": "47dd2e1d06b32f8298b68717d910f96f78f0435d4be2a55ba193a4d1707eb849",
+      "copy_sha256": "47dd2e1d06b32f8298b68717d910f96f78f0435d4be2a55ba193a4d1707eb849",
+      "changes": []
+    }
+  ]
+}

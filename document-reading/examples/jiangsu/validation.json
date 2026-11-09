@@ -1,0 +1,59 @@
+{
+  "status": "incomplete",
+  "issues": [
+    {
+      "code": "table_cell_text_difference",
+      "table_id": "T0013",
+      "cell_id": "C0018",
+      "docling_text": "专用发票   普通发票  ",
+      "word_text": "[未识别符号]专用发票   [未识别符号]普通发票"
+    },
+    {
+      "code": "table_cell_text_difference",
+      "table_id": "T0013",
+      "cell_id": "C0020",
+      "docling_text": "标书费     代理服务费（中标了才需要开代理服务费）",
+      "word_text": "[未识别符号]标书费     [未识别符号]代理服务费（中标了才需要开代理服务费）"
+    },
+    {
+      "code": "secondary_mixed_numbering_review",
+      "chapter": "第二章  供应商须知\t5",
+      "candidate_ids": [
+        "H00023",
+        "H00024",
+        "H00031",
+        "H00035",
+        "H00041",
+        "H00047",
+        "H00054",
+        "H00057"
+      ]
+    },
+    {
+      "code": "secondary_mixed_numbering_review",
+      "chapter": "第四章 项目需求\t26",
+      "candidate_ids": [
+        "H00072",
+        "H00073",
+        "H00074",
+        "H00075",
+        "H00076",
+        "H00077",
+        "H00078",
+        "H00079",
+        "H00080",
+        "H00081",
+        "H00082",
+        "H00083",
+        "H00084",
+        "H00085",
+        "H00086"
+      ]
+    }
+  ],
+  "block_count": 601,
+  "section_count": 53,
+  "table_count": 13,
+  "image_count": 0,
+  "semantic_quality": "not_evaluated"
+}

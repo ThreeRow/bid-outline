@@ -1,0 +1,35 @@
+{
+  "status": "incomplete",
+  "issues": [
+    {
+      "code": "secondary_mixed_numbering_review",
+      "chapter": "第六章 政府采购合同",
+      "candidate_ids": [
+        "H00035",
+        "H00036",
+        "H00037",
+        "H00038",
+        "H00039",
+        "H00040",
+        "H00041",
+        "H00042",
+        "H00043",
+        "H00044",
+        "H00045",
+        "H00046",
+        "H00047",
+        "H00048",
+        "H00049",
+        "H00050",
+        "H00051",
+        "H00052",
+        "H00053"
+      ]
+    }
+  ],
+  "block_count": 1149,
+  "section_count": 56,
+  "table_count": 25,
+  "image_count": 0,
+  "semantic_quality": "not_evaluated"
+}

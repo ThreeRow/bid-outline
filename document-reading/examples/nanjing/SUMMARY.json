@@ -1,0 +1,24 @@
+{
+  "case": "nanjing",
+  "title": "南京机场：信创云项目",
+  "historical_source": "output_integrated/20261025_fusion_e2e/nanjing/reading",
+  "historical_status": "incomplete",
+  "historical_stage": "finished",
+  "document_version": 2,
+  "structure_status": "organized",
+  "semantic_quality": "not_evaluated",
+  "blocks": 715,
+  "sections": 80,
+  "tables": 33,
+  "issue_count": 8,
+  "issue_codes": {
+    "textbox_flattened": 2,
+    "table_cell_text_difference": 1,
+    "paragraph_text_reconciled": 3,
+    "word_content_recovered": 1,
+    "docling_block_unmatched": 1
+  },
+  "selected_chapter": "chapters/S00052.md",
+  "selected_table": "T0011",
+  "kind": "historical_output_not_current_validation"
+}

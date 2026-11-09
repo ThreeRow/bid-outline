@@ -1,0 +1,22 @@
+{
+  "case": "shenzhen",
+  "title": "深圳：AI合规审查工具",
+  "historical_source": "output_integrated/20261025_fusion_e2e/shenzhen/reading",
+  "historical_status": "incomplete",
+  "historical_stage": "finished",
+  "document_version": 2,
+  "structure_status": "organized",
+  "semantic_quality": "not_evaluated",
+  "blocks": 903,
+  "sections": 21,
+  "tables": 22,
+  "issue_count": 5,
+  "issue_codes": {
+    "symbol_needs_mapping": 1,
+    "paragraph_text_reconciled": 3,
+    "word_content_recovered": 1
+  },
+  "selected_chapter": "chapters/S00014.md",
+  "selected_table": "T0008",
+  "kind": "historical_output_not_current_validation"
+}

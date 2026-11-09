@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bid-outline"
+version = "0.11.0"
+description = "Auditable technical bid outline workflow"
+requires-python = ">=3.11"
+dependencies = ["httpx>=0.28,<0.29", "pydantic>=2.13,<3"]
+
+[project.optional-dependencies]
+test = ["pytest>=9,<10"]
+tokenizer = ["transformers>=4.57,<6"]
+
+[project.scripts]
+bid-outline = "bid_outline.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"bid_outline.model" = ["prompts/*.txt", "prompts/*.md", "prompts/**/*.txt", "prompts/**/*.md", "prompts/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-p no:cacheprovider"

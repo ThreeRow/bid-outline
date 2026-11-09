@@ -1,0 +1,295 @@
+{
+  "kind": "historical_reading_outputs",
+  "collected_on": "2026-11-03",
+  "cases": [
+    {
+      "case": "shenzhen",
+      "source_dir": "output_integrated/20261025_fusion_e2e/shenzhen/reading",
+      "files": [
+        {
+          "file": "reading.md",
+          "sha256": "5774309976a0796569ed305b6985ae5c2ccb86256a60953e6d1b42752855aa10",
+          "bytes": 169651
+        },
+        {
+          "file": "headings.md",
+          "sha256": "0088ea3bd223e37df086bc87bd80347dd848f0d9ea222f31ccb6c0c3a324c40b",
+          "bytes": 616
+        },
+        {
+          "file": "document.json",
+          "sha256": "a5b6a0921cdb932d7c4bade0101d6ab30f5cbf81f57d59b60d1e9f4531aa218b",
+          "bytes": 2256646
+        },
+        {
+          "file": "source_map.json",
+          "sha256": "9950dec121d07ab70cd4cb9e83e82b539649ca208dc236fa0ea387e22b606608",
+          "bytes": 993465
+        },
+        {
+          "file": "validation.json",
+          "sha256": "ac446f72e78b5058d28a5f2790ed9c43d175ed8eb1274f98246c4210008e53a0",
+          "bytes": 3063
+        },
+        {
+          "file": "chapters/index.json",
+          "sha256": "3bb3b8d017ace41aa01f7628b2571995fbc7bd78b183c0d194144f47e078e400",
+          "bytes": 18049
+        },
+        {
+          "file": "chapters/frontmatter.md",
+          "sha256": "2ea34750bdbb5b37eaf64bc423ef3c0ab2fc48796f3b031fcd61872106dd0701",
+          "bytes": 502
+        },
+        {
+          "file": "chapters/S00001.md",
+          "sha256": "2ea7fc2c9137707f260d3e92a900981efe71249647053f4a54e965e390e90d1c",
+          "bytes": 15030
+        },
+        {
+          "file": "chapters/S00005.md",
+          "sha256": "3dbe8e50012dc6b89648f8445b49e603d1741e17eccbb14d20c2e2524a3a0358",
+          "bytes": 45891
+        },
+        {
+          "file": "chapters/S00009.md",
+          "sha256": "c993a4a1c4cf34caaa25c577642e340d4792e45679711457f330f295716011a5",
+          "bytes": 31642
+        },
+        {
+          "file": "chapters/S00013.md",
+          "sha256": "2fd44dfb8aa7060e6dcd3ad026f314d8ee8d87fb4c49409f6ada5db909f896b1",
+          "bytes": 20194
+        },
+        {
+          "file": "chapters/S00014.md",
+          "sha256": "71ebbb2905eeb331c68f0a0ff69b5194651202ca9918cfbf3aa698d365da16d2",
+          "bytes": 33377
+        },
+        {
+          "file": "chapters/S00017.md",
+          "sha256": "decc5f5d659e3c7d74d07cc5527aa1b113832a0cf98e37ec0c93544d42195ceb",
+          "bytes": 23009
+        }
+      ]
+    },
+    {
+      "case": "fujian",
+      "source_dir": "output_integrated/20261025_fusion_e2e/fujian/reading",
+      "files": [
+        {
+          "file": "reading.md",
+          "sha256": "5885021fde663319d0c14d3113202c21b252d94300a57597ff3c8c9497a922ad",
+          "bytes": 160754
+        },
+        {
+          "file": "headings.md",
+          "sha256": "d9e2b76c72a984a054ee5fc352d20404d05a1431430fa25e5610908127a3db6d",
+          "bytes": 1829
+        },
+        {
+          "file": "document.json",
+          "sha256": "9629fda2a9a848e9a45b82f0a4f61a542df872bb8d5ac7aafc7d7a6b18c3c81c",
+          "bytes": 2368491
+        },
+        {
+          "file": "source_map.json",
+          "sha256": "b826be6c5af004a3243897b54b32e685cac5d2972f2a918cc370b784ef155092",
+          "bytes": 926559
+        },
+        {
+          "file": "validation.json",
+          "sha256": "c89ee78997931655a17b4f5ac403f5488c9d16035a5d07df329ed32e87c6119d",
+          "bytes": 659
+        },
+        {
+          "file": "chapters/index.json",
+          "sha256": "39e8351c0eec84b64e6a74bd8de4124c6d6421718c7616c3566f8a6535f91e0e",
+          "bytes": 23139
+        },
+        {
+          "file": "chapters/frontmatter.md",
+          "sha256": "baaa044450096db86329bfd49c24706053aad6d5e1635899bcda4deba762f516",
+          "bytes": 341
+        },
+        {
+          "file": "chapters/S00001.md",
+          "sha256": "14a04c0458f3fbc8c8296e1a40788a2a79b9374d399244aa0eb214af36ee75ba",
+          "bytes": 6138
+        },
+        {
+          "file": "chapters/S00010.md",
+          "sha256": "32a17aa9e09dd1dc23f4ac1bb51777a6aa16c65231ef35faac2a4ce7efe953d7",
+          "bytes": 11635
+        },
+        {
+          "file": "chapters/S00013.md",
+          "sha256": "b12b7fe8a37b7f5c5dce38d65bc66190db62c246bd0b8898e9f46f5bb3b0b8a3",
+          "bytes": 33712
+        },
+        {
+          "file": "chapters/S00024.md",
+          "sha256": "f1946aee24b0c08d001238a54c23985a06cb4ea53d02ca64aada8b0b6f229a30",
+          "bytes": 32566
+        },
+        {
+          "file": "chapters/S00027.md",
+          "sha256": "595c85e622098c50f5e72dbd24f992174cb38d92bcdd9da64dfc4e4f17a81899",
+          "bytes": 16922
+        },
+        {
+          "file": "chapters/S00032.md",
+          "sha256": "94af5318536f6bfd2333f67ae2025bc78cb5311e95e0fe4f221688b593552b03",
+          "bytes": 9579
+        },
+        {
+          "file": "chapters/S00052.md",
+          "sha256": "cea0140ae31599482f4d52fbd73b8802e19a89b0f3bd7297d9939cde4b4c8b7d",
+          "bytes": 49854
+        }
+      ]
+    },
+    {
+      "case": "nanjing",
+      "source_dir": "output_integrated/20261025_fusion_e2e/nanjing/reading",
+      "files": [
+        {
+          "file": "reading.md",
+          "sha256": "55bbdbfd96cfb3f999f261e1d35d6ca5ff3a5b884be1d7eda33cdaef57a09be4",
+          "bytes": 134995
+        },
+        {
+          "file": "headings.md",
+          "sha256": "819e95092024e98e57520f39a4cd6164b345a2525368701427a16a1fb76d3bfa",
+          "bytes": 2224
+        },
+        {
+          "file": "document.json",
+          "sha256": "de4e9e41c9602bf3ab47594d924baf968b34acd5b42a0df5df7c75bc9363d27d",
+          "bytes": 1885851
+        },
+        {
+          "file": "source_map.json",
+          "sha256": "f604d01f9067a7cfee37411f1d36d7d52a6e19119c049db0d37fb6f92c3d5501",
+          "bytes": 891438
+        },
+        {
+          "file": "validation.json",
+          "sha256": "8bb37642fb08f8056b01a0bb1d37826ca5fe6d84430d81da4593cca523c656a1",
+          "bytes": 3302
+        },
+        {
+          "file": "chapters/index.json",
+          "sha256": "3f5aca21b1612a7fc0a9c3d26c57b96c20e69f254c26f0e75ff0a0181c3d1d5c",
+          "bytes": 15763
+        },
+        {
+          "file": "chapters/frontmatter.md",
+          "sha256": "38fbbc44bf9cf624d457caf99b079da7cb87e2c80a2afdb5c0312fd3cae234cd",
+          "bytes": 404
+        },
+        {
+          "file": "chapters/S00001.md",
+          "sha256": "956b622e09bbebc3d55f8a5540d360573269f10ffdbe0537ea3aa42e04909de2",
+          "bytes": 4698
+        },
+        {
+          "file": "chapters/S00007.md",
+          "sha256": "6e5ca9cf3f4c9a18492e26d069e23175c0c3611aa371abac28c43c657934e425",
+          "bytes": 27079
+        },
+        {
+          "file": "chapters/S00015.md",
+          "sha256": "d1d88d9d5db45eda9f9e423dd6ec42d0eaacd24c01522a0bd9346996a4f440b5",
+          "bytes": 5901
+        },
+        {
+          "file": "chapters/S00016.md",
+          "sha256": "46090349ac62506cc761b90814a0dc6899f29cc9b1ab05f9d0281d6e4d6ce6d3",
+          "bytes": 28133
+        },
+        {
+          "file": "chapters/S00052.md",
+          "sha256": "8f640c615fe48b4e934bc875de626e71ca91999d96c16519c212ddc6ec7391de",
+          "bytes": 38759
+        },
+        {
+          "file": "chapters/S00074.md",
+          "sha256": "d4d9d423a25bdc0286e875efe1954303a7986c15454af64fb4624ec3a75aace7",
+          "bytes": 30015
+        }
+      ]
+    },
+    {
+      "case": "jiangsu",
+      "source_dir": "output_integrated/20261025_fusion_e2e/jiangsu/reading",
+      "files": [
+        {
+          "file": "reading.md",
+          "sha256": "8cfb7860efc5cce4dacc0036c5518a0419848cc594c0c59f57cf9b5f7122f3e6",
+          "bytes": 101032
+        },
+        {
+          "file": "headings.md",
+          "sha256": "78c5a8fa62ad61c913c9fbac07380f03e3234bde4a9d6665bbb6ffa30ef3731e",
+          "bytes": 1606
+        },
+        {
+          "file": "document.json",
+          "sha256": "e99ce7103034d2577b07a9dc9942eefbd7e1ed87076c2b66d715aa221fa32d19",
+          "bytes": 1336578
+        },
+        {
+          "file": "source_map.json",
+          "sha256": "ac9f59e439e8332af089785c07dc06fcaab9d127c3923527830d2a24a859a44a",
+          "bytes": 549713
+        },
+        {
+          "file": "validation.json",
+          "sha256": "14540576916eb684d54acfdc3c405707f6b7af7971c1c8c648b44cb5545e1abf",
+          "bytes": 1455
+        },
+        {
+          "file": "chapters/index.json",
+          "sha256": "6f81d29020255b95e1c7314784c1b9be26c0907e7a6651d890407eeae789a36f",
+          "bytes": 13413
+        },
+        {
+          "file": "chapters/frontmatter.md",
+          "sha256": "71eb8e553565917cf9d7fc0d468557ff06eac973e24054432370d66fbb92592e",
+          "bytes": 1627
+        },
+        {
+          "file": "chapters/S00001.md",
+          "sha256": "3af8f4b55717008c56966e3008cb6d7b60e628c22d735d76d86c22a6fa9e38e2",
+          "bytes": 6639
+        },
+        {
+          "file": "chapters/S00010.md",
+          "sha256": "a3c3dc6da826a8a022c5b9281f6af042d5c1205715537618ab1436dae9a077e5",
+          "bytes": 37100
+        },
+        {
+          "file": "chapters/S00019.md",
+          "sha256": "056ec71141d7c6fa83c5641bf46277a24308128c5117bb1afb2ab9a05d7a6e92",
+          "bytes": 13262
+        },
+        {
+          "file": "chapters/S00033.md",
+          "sha256": "c3c32616a25eefb75d608bd854d8b004e3313d4b8949a4874450644eb07706e3",
+          "bytes": 12925
+        },
+        {
+          "file": "chapters/S00049.md",
+          "sha256": "66469eac66cdc829fe9fa10a29e6e0a7618497000190b768c9fd9a05b10735cc",
+          "bytes": 15420
+        },
+        {
+          "file": "chapters/S00053.md",
+          "sha256": "c5c7d41a0a611ff24f42c719896c726e8a74f641891d9c3297d964e6b76a498e",
+          "bytes": 14053
+        }
+      ]
+    }
+  ]
+}

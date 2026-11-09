@@ -1,0 +1,11 @@
+# 阅读入口及 api/train 运行所需直接依赖；版本取自项目锁定清单。
+# 新环境安装组合未单独验证；完整环境快照见 docs/environment/。
+docling==2.141.0
+docling-core==2.103.1
+openai==2.46.0
+transformers==4.57.6
+tokenizers==0.22.2
+json-repair==0.64.2
+# 仅直接使用可选 LangChain 适配器时需要：
+# langchain-core==0.3.86
+# langchain-openai==0.3.35

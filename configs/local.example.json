@@ -1,0 +1,23 @@
+{
+  "base_url": "http://127.0.0.1:8000/v1",
+  "model": "REPLACE_WITH_ACTUAL_SERVED_MODEL_NAME",
+  "api_key_env": "BID_OUTLINE_API_KEY",
+  "context_tokens": 20000,
+  "service_context_tokens": 20480,
+  "max_tokens": 4096,
+  "safety_tokens": 512,
+  "temperature": 0.0,
+  "max_in_flight": 2,
+  "workers": 4,
+  "queue_capacity": 16,
+  "timeout_seconds": 120.0,
+  "transport_retries": 2,
+  "format_retries": 1,
+  "supplement_rounds": 2,
+  "repair_rounds": 2,
+  "max_task_calls": 8,
+  "max_run_calls": 2000,
+  "chunk_chars": 5000,
+  "tokenizer": null,
+  "extra_body": {}
+}
