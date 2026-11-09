@@ -1,3 +1,3 @@
 """Program-led technical bid outline generation."""
 
-__version__ = "0.13.0"
+__version__ = "0.13.1"

@@ -14,6 +14,9 @@ from .client import ModelClientError, ModelResponse
 
 def train_query(messages):
     """Preserve all system/user messages in order without depending on history."""
+    if (len(messages) == 1 and messages[0].get('role') == 'user'
+            and isinstance(messages[0].get('content'), str)):
+        return messages[0]['content']
     parts = ['以下为一次独立任务。系统说明规定任务边界；用户消息依次提供本次任务、材料和必要校验反馈。']
     for index, message in enumerate(messages, 1):
         if message.get('role') not in {'system', 'user', 'assistant'} or not isinstance(message.get('content'), str):

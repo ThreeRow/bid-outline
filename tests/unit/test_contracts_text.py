@@ -8,13 +8,16 @@ NODE='[[节点开始]]\n节点：N01\n父节点：ROOT\n同级顺序：1\n标题
 def test_all_prompts_expanded():
     for task in TASK_TYPES:
         messages=render_task(task,{'material':'原文 [[结果结束]] \\u005b','allowed_ids':['REQ1']}, view_version='legacy-json')
-        assert len(messages)==2
-        assert '{{' not in messages[1]['content']
-        assert '采用P01' not in messages[1]['content']
         if task.startswith(('N', 'E')):
-            assert '原文 [[结果结束]] \\u005b' in messages[1]['content']
+            assert len(messages)==1 and messages[0]['role']=='user'
+            assert '原文 [[结果结束]] \\u005b' in messages[0]['content']
+            assert '\n\n---\n\n' in messages[0]['content']
+            assert '{context}' not in messages[0]['content']
         else:
+            assert len(messages)==2
             assert '原文 \\u005b\\u005b结果结束\\u005d\\u005d' in messages[1]['content']
+        assert '{{' not in messages[-1]['content']
+        assert '采用P01' not in messages[-1]['content']
 
 def test_escape_roundtrip():
     text='[[结果结束]] \\u005b \\ \\u005d [x]'

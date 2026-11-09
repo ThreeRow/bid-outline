@@ -6,19 +6,27 @@ from bid_outline import __version__
 from bid_outline.document.location_rules import VERSION as RULES_VERSION
 from bid_outline.domain import Document
 from bid_outline.export.markdown import write_atomic
-from bid_outline.model.text_tasks import TASKS
+from bid_outline.model.text_tasks import TASKS, TextMaterial
 from .common import identity, now
 from .extraction import Extraction
 from .text_runner import TextWorkflowRunner
 
-FLOW_VERSION = 'collaborative-directory-1'
+FLOW_VERSION = 'collaborative-directory-2'
 
 
 class CollaborativeRunner(TextWorkflowRunner):
+    def organization_task(self, task):
+        return 'E02' if self.config.extraction_mode == 'anchors' else task
+
     async def organize_call(self, task, material, source, parents, name):
         if self.config.extraction_mode == 'anchors':
             result = await self.extraction.anchors(material, source, parents, name)
             if result:
+                if task == 'N01-A' and not result.get('no_content'):
+                    # An anchor response produces literal source, not an A directory.
+                    return await self.call('N02-A', TextMaterial(result['text'],
+                        material.context if isinstance(material, TextMaterial) else ''),
+                        parents + [result['artifact_id']], name + ':根据回取原文生成格式目录')
                 return result
         return await self.call(task, material, parents, name)
 
@@ -47,7 +55,7 @@ class CollaborativeRunner(TextWorkflowRunner):
             'flow_version': FLOW_VERSION, 'code_version': __version__, 'rules_version': RULES_VERSION,
             'config_snapshot': self.config.model_dump(mode='json'), 'prompt_identity': prompts,
             'document_artifact_id': source_id, 'stage': 'location', 'status': 'running',
-            'started_at': previous['started_at'] if previous else now(), 'prompt_status': 'provisional_awaiting_user_design',
+            'started_at': previous['started_at'] if previous else now(), 'prompt_status': 'user_reviewed_draft',
             'reader_name': document.reader_name, 'reader_version': document.reader_version,
             'input_hashes': [document.source_hash], 'semantic_quality': 'not_evaluated'}
         self.save_manifest()
@@ -67,6 +75,8 @@ class CollaborativeRunner(TextWorkflowRunner):
                     return located, category, items
                 for located, category, items in await self.extraction.parallel(organize, ranges):
                     for item in items:
+                        if item.get('no_content'):
+                            continue
                         # A readable source label, not a model-owned ID contract.
                         item = {**item, 'text': '来源区域：' + item.get('source_heading', '') + '\n' + item['text']}
                         organized[category].append(item)
@@ -78,27 +88,44 @@ class CollaborativeRunner(TextWorkflowRunner):
                     write_atomic(self.run_dir / f'stages/organized/{category}.md', text)
             if self.config.stop_after == 'directory':
                 drafts = []
-                for category in 'AB':
-                    for item in organized[category]:
-                        result = await self.attempt('N02-' + category, item['text'], [item['artifact_id']], category+'目录')
-                        if result:
-                            drafts.append((category, result))
+                # A already is a directory; only B needs expansion after organization.
+                drafts.extend(('A', item) for item in organized['A'])
+                for item in organized['B']:
+                    result = await self.attempt('N02-B', item['text'], [item['artifact_id']], '根据评审要求展开目录')
+                    if result and not result.get('no_content'):
+                        drafts.append(('B', result))
+                current_kind = None
                 for category, draft in drafts:
                     if current is None:
                         current = draft
+                        current_kind = '根据格式编制要求形成的目录' if category == 'A' else '根据技术评审要求展开的目录'
                     else:
-                        result = await self.attempt('N03', '当前完整草稿：\n' + current['text'] +
-                            f'\n新增{category}草稿：\n' + draft['text'], [current['artifact_id'], draft['artifact_id']], '融合目录')
-                        if result:
+                        added_kind = '根据格式编制要求形成的目录' if category == 'A' else '根据技术评审要求展开的目录'
+                        result = await self.attempt('N03', current_kind + '：\n' + current['text'] +
+                            '\n\n' + added_kind + '：\n' + draft['text'], [current['artifact_id'], draft['artifact_id']], '融合目录')
+                        if result and not result.get('no_content'):
                             current = result
+                            current_kind = '已融合的累计目录草稿'
+                        elif result:
+                            self.unprocessed.append({'task_type': 'N03', 'scope': '融合目录',
+                                'error': '已有非空草稿但融合回复无；保留原草稿及未合入内容',
+                                'parents': [current['artifact_id'], draft['artifact_id']]})
                 for item in organized['C']:
-                    prefix = '当前完整草稿：\n' + current['text'] if current else '尚无A/B目录'
-                    result = await self.attempt('N04', prefix+'\n补充技术约束与内容：\n'+item['text'],
+                    prefix = '当前目录：\n' + current['text'] if current else '当前尚无目录草稿'
+                    result = await self.attempt('N04', prefix+'\n\n技术要求和响应事项：\n'+item['text'],
                         ([current['artifact_id']] if current else [])+[item['artifact_id']], 'C补充')
-                    if result:
+                    if result and not result.get('no_content'):
                         current = result
+                    elif result and current:
+                        self.unprocessed.append({'task_type': 'N04', 'scope': '根据技术要求补充目录',
+                            'error': '已有目录但补充回复无；保留原草稿及未处理要求',
+                            'parents': [current['artifact_id'], item['artifact_id']]})
                 if current:
                     final = await self.attempt('N05', current['text'], [current['artifact_id']], '最终目录')
+                    if final and final.get('no_content'):
+                        self.unprocessed.append({'task_type': 'N05', 'scope': '最终目录',
+                            'error': '已有目录草稿但最终回复无；保留草稿', 'parents': [current['artifact_id']]})
+                        final = None
                     if final:
                         write_atomic(self.run_dir/'stages/final.md', final['text'])
                 else:

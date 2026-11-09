@@ -157,7 +157,9 @@ class ModelExecutor:
         if self.config.protocol_for(task_type) == 'text-v1':
             if not isinstance(response.content, str) or not response.content.strip():
                 raise TaskExecutionError('empty text response')
-            return {'text': response.content, 'fields': {}, 'records': {}, 'supplements': []}
+            from .text_tasks import no_content
+            return {'text': response.content, 'no_content': no_content(task_type, response.content),
+                    'fields': {}, 'records': {}, 'supplements': []}
         aliases = inputs.get('id_aliases', {})
         validation = dict(allowed_ids=[aliases.get(x, x) for x in inputs.get('allowed_ids', [])],
                           expected_ids=([aliases.get(x, x) for x in inputs['expected_ids']]

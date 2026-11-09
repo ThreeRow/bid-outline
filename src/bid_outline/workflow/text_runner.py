@@ -15,7 +15,7 @@ from bid_outline.export.markdown import write_atomic
 from bid_outline.model.executor import ModelExecutor, OutputTruncated
 from bid_outline.model.budget import BudgetExceeded, TaskExecutionError
 from bid_outline.model.task_specs import render_task
-from bid_outline.model.text_tasks import TASKS
+from bid_outline.model.text_tasks import TASKS, TextMaterial, input_data, CATEGORY_CONTENT
 from bid_outline.storage import ArtifactStore, RunRepository
 from .common import bounded_map, identity, now
 
@@ -36,7 +36,7 @@ class TextWorkflowRunner:
         write_atomic(self.run_dir / 'manifest.json', json.dumps(self.manifest, ensure_ascii=False, indent=2) + '\n')
 
     def messages(self, task, material):
-        return render_task(task, {'material': material})
+        return render_task(task, input_data(material))
 
     def fits(self, task, material):
         try:
@@ -46,12 +46,13 @@ class TextWorkflowRunner:
             return False
 
     async def call(self, task, material, parents, name):
-        task_id = identity('text_', [FLOW_VERSION, task, material, parents])
-        result = await self.executor.execute(task, {'material': material, 'display_name': name},
+        inputs = input_data(material)
+        task_id = identity('text_', [FLOW_VERSION, task, inputs, parents])
+        result = await self.executor.execute(task, {**inputs, 'display_name': name},
                                              task_id=task_id, dependencies=parents)
         ref = self.repository.result_ref(task_id)
         item = {'task_type': task, 'task_id': task_id, 'artifact_id': ref['artifact_id'],
-                'text': result['text'], 'parents': parents, 'name': name}
+                'text': result['text'], 'no_content': result.get('no_content', False), 'parents': parents, 'name': name}
         self.stages.append(item)
         # A deterministic readable projection; adoption remains authoritative.
         write_atomic(self.run_dir / 'stages' / (task_id + '.md'), result['text'])
@@ -69,6 +70,7 @@ class TextWorkflowRunner:
 
     async def organize(self, located, parent):
         task = 'N01-' + located.category
+        budget_task = self.organization_task(task)
         budget = self.executor.budget
         document = expandable_tables(located.document, budget.text_tokens, self.config.text_batch_tokens)
         elements = {e.element_id: e for e in document.elements}
@@ -80,17 +82,18 @@ class TextWorkflowRunner:
                 for row in elements[eid].metadata.get('table_rows', []) if row.get('header')))
             projected_context = '\n'.join(dict.fromkeys(elements[eid].metadata.get('shared_context', '')
                 for ref in chunk.owned_refs for eid in ref.element_ids if elements[eid].metadata.get('shared_context')))
-            return ('整理类别：' + located.category + '\n章节：' + ' / '.join(chunk.section_context) +
+            context = ('本次寻找的内容：' + CATEGORY_CONTENT[located.category] + '\n截取内容所属章节：\n' +
+                    (' / '.join(chunk.section_context) or '见所给材料的位置说明') +
                     ('\n共同条件/表头：\n' + projected_context if projected_context else '') +
                     ('\n涉及小节：\n' + sections if sections else '') +
                     ('\n辅助条件（仅供理解）：\n' + notes if notes else '') +
-                    ('\n原表表头（辅助理解）：\n' + '\n'.join(headers) if headers else '') +
-                    '\n\n负责正文：\n' + (chunk.text if body is None else body))
+                    ('\n原表表头（辅助理解）：\n' + '\n'.join(headers) if headers else ''))
+            return TextMaterial(chunk.text if body is None else body, context)
         chunks = token_chunks(document,
             allowance=lambda c: min(self.config.text_batch_tokens, budget.allowance(
-                self.messages(task, material(c, '')), self.config.max_tokens, task_type=task)),
+                self.messages(budget_task, material(c, '')), self.config.max_tokens, task_type=budget_task)),
             text_tokens=budget.text_tokens,
-            fits=lambda c: budget.text_tokens(c.text) <= self.config.text_batch_tokens and self.fits(task, material(c)))
+            fits=lambda c: budget.text_tokens(c.text) <= self.config.text_batch_tokens and self.fits(budget_task, material(c)))
         async def process(chunk):
             source = self.artifacts.put('located_chunk', chunk.model_dump(mode='json'), parents=[parent])
             try:
@@ -118,6 +121,9 @@ class TextWorkflowRunner:
 
     async def organize_call(self, task, material, source, parents, name):
         return await self.call(task, material, parents, name)
+
+    def organization_task(self, task):
+        return task
 
     def generation_batches(self, task, text, wrap=lambda text: text):
         """Pack complete paragraphs/lines, retaining all text and explicit oversize units."""

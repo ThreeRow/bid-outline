@@ -20,7 +20,7 @@ def write_atomic(path: Path, content: str) -> None:
 
 def export_result(result: dict, output: Path) -> dict[str, str]:
     output = Path(output)
-    if result.get('flow_version') in ('text-directory-1', 'collaborative-directory-1'):
+    if result.get('flow_version') in ('text-directory-1', 'collaborative-directory-1', 'collaborative-directory-2'):
         text = result.get('directory_text') or result.get('draft_text') or '尚无可用目录草稿。'
         label = '最终目录文本（未作语义验收）' if result.get('directory_text') else '未完成的目录草稿'
         issues = result.get('issues', []) + result.get('unprocessed_ranges', [])

@@ -71,7 +71,7 @@ def test_model_requests_receive_only_their_routed_pool(tmp_path):
         assert len(organizers) == 3
         for request, expected, excluded in zip(organizers, ['格式方案', '评分方案', '应急预案'],
                                              [('评分方案', '应急预案'), ('格式方案', '应急预案'), ('格式方案', '评分方案')]):
-            material = request['messages'][1]['content'].split('负责正文：\n')[1]
+            material = request['messages'][-1]['content'].split('\n\n---\n\n', 1)[1]
             assert expected in material
             assert all(text not in material for text in excluded)
         assert (tmp_path / 'stages/organization_plan.json').exists()

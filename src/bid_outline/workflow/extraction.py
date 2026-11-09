@@ -7,6 +7,7 @@ from bid_outline.document.locate import LocatedRange, position_hits
 from bid_outline.document.location_rules import LOCAL, VERSION, compact, position_categories
 from bid_outline.document.source_index import SourceIndex
 from bid_outline.export.markdown import write_atomic
+from bid_outline.model.text_tasks import TextMaterial, with_feedback, CATEGORY_CONTENT
 from .common import identity, bounded_map
 
 
@@ -62,7 +63,8 @@ class Extraction:
                 continue
             found, errors = self.parse_hints(result['text'])
             if errors:
-                retry = await self.runner.attempt('E01', page + '\n\n上次定位问题：\n' + '\n'.join(errors),
+                retry = await self.runner.attempt('E01', TextMaterial(page, '上次定位问题：\n' + '\n'.join(errors) +
+                    '\n请根据所给目录重新选择真实章节。'),
                     [self.source_id, result['artifact_id']], '目录定位澄清')
                 if retry:
                     more, errors = self.parse_hints(retry['text'])
@@ -106,7 +108,9 @@ class Extraction:
                 start = max(0, center - self.config.local_context_chars // 3)
                 context = '【局部节选，边界可能省略条件；不足以排除时请待核】\n' + context[start:start+self.config.local_context_chars]
                 excerpted = True
-            material = f'类别：{category}\n位置：' + ' / '.join(path) + '\n局部上下文：\n' + context
+            material = TextMaterial(context, '本次寻找的内容：\n' + CATEGORY_CONTENT[category] +
+                '\n截取内容所属章节：\n' + ' / '.join(path) + '\n本次发现的线索：\n' +
+                '、'.join(dict.fromkeys(hit for c in candidates for hit in c['hits'])))
             result = await self.runner.attempt('E00', material, [candidate_id], '局部判断')
             state = result['text'].strip().splitlines()[0].strip() if result else '待核'
             if state not in {'保留', '排除', '待核'}:
@@ -159,7 +163,7 @@ class Extraction:
             return None
         for round_no in range(2):
             try:
-                if result['text'].strip() == '未发现':
+                if result.get('no_content'):
                     return result
                 records = fields(result['text'])
                 matches = [match_anchors(source, r) for r in records]
@@ -174,7 +178,8 @@ class Extraction:
             except ValueError as exc:
                 error = str(exc)
             if round_no == 0:
-                revised = await self.runner.attempt('E02', task_material + '\n匹配问题：' + error,
+                revised = await self.runner.attempt('E02', with_feedback(task_material, '上次匹配问题：' + error +
+                    '\n请根据所给原文重新提供定位句。'),
                     parents + [result['artifact_id']], name + ':修正锚点')
                 if revised:
                     result = revised
@@ -183,6 +188,7 @@ class Extraction:
             return None
 
     async def summarize(self, category, items):
+        items = [item for item in items if not item.get('no_content')]
         if not items:
             return []
         task = 'E03-' + category
@@ -205,11 +211,12 @@ class Extraction:
                 body = '\n\n'.join(x['text'] for x in group)
                 result = await self.runner.attempt(task, body, [x['artifact_id'] for x in group], f'{category}汇总:{level}:{n}')
                 if result:
-                    outputs.append(result)
+                    if not result.get('no_content'):
+                        outputs.append(result)
                 else:
                     # Preserve texts as volumes; never silently drop a failed group.
                     outputs.extend(group)
-            if len(groups) == 1 and len(outputs) == 1:
+            if not outputs or (len(groups) == 1 and len(outputs) == 1):
                 return outputs
             if len(outputs) >= len(current) and sum(len(x['text']) for x in outputs) >= sum(len(x['text']) for x in current):
                 self.note(task, category, '汇总不能继续安全归并；保留完整分册')

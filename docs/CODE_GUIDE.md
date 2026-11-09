@@ -1,6 +1,6 @@
 # 代码导引：模块、文件与运行流转
 
-核对日期：2026-11-09；当前版本0.13.0。默认工作流为规则与模型协同提取。设计见[25号计划](25_规则与模型协同提取实现计划.md)，环境、实验和维护约定见[PROJECT_CONTEXT](../PROJECT_CONTEXT.md)。新prompt仍是待用户参与定稿的占位版本；本轮不宣称真实模型质量验收。
+核对日期：2026-11-09；当前版本0.13.1。默认工作流为规则与模型协同提取。设计见[25号计划](25_规则与模型协同提取实现计划.md)，环境、实验和维护约定见[PROJECT_CONTEXT](../PROJECT_CONTEXT.md)。prompt已按用户审阅稿调整，尚未真实模型验证；本轮不宣称真实模型质量验收。
 
 ## 1. 最短阅读路径
 
@@ -9,7 +9,7 @@
 3. `document/location_rules.py`、`document/locate.py::position_hits`：先位置后线索。
 4. `workflow/extraction.py::Extraction`：目录辅助、局部判断、完整选区、多点锚定、类别汇总。
 5. `workflow/collaborative_runner.py::CollaborativeRunner.run`：当前总编排。
-6. `model/text_tasks.py`与`model/prompts/text/`：任务注册与占位提示。
+6. `model/text_tasks.py`与`model/prompts/text/`：任务注册、连贯文本渲染和空内容约定。
 7. `model/executor.py`、`model/train_client.py`、`model/train_batch.py`：逐任务采用与共享train批次。
 8. `export/markdown.py::export_result`：导出ABC文本或目录。
 
@@ -24,11 +24,11 @@ cli.execute → read_document → CollaborativeRunner.run
   → position_hits：只在所选位置匹配线索和★☆▲△■
   → E00：宽泛表达或符号的局部上下文判断
   → 完整选区 → 分块
-      direct：N01-A/B/C判断并整理
+      direct：N01-A识别格式并出目录；N01-B/C整理要求
       anchors：E02起止句+中间锚点 → 固定Python回取原文
-               失败有限澄清，再显式回退N01
+               失败有限澄清，再显式回退N01；A回取成功先N02-A转目录
   → 按类别原文顺序拼接 → E03-A/B/C统一整理
-  → N02-A/N02-B → N03融合 → N04按C补充 → N05润色
+  → A目录直接采用、N02-B展开评审目录 → N03融合 → N04按C补充 → N05润色
 ```
 
 A为技术标格式/编制，B为技术或服务评审，C为技术约束、实质性响应、负偏离、必需指标、明确内容范围及相关材料。符号本身可定位，含义由本处上下文判断。当前不执行目录语义检查、自动修正或独立扩展建议。
@@ -79,12 +79,12 @@ E00输出首行保留/排除/待核，其余可简短说明。空答、失败、
 | E01 | 根据目录辅助选择候选位置 |
 | E00 | 局部宽泛线索判断 |
 | E02 | 起始句、结束句、中间锚点定位 |
-| N01-A/B/C | 完整块的判断与对应内容整理 |
-| E03-A/B/C | 同类块结果统一整理内容和格式 |
-| N02-A/B | 根据统一A/B文本生成目录，B显式列项和评价维度 |
+| N01-A/B/C | A直接生成目录，B/C沿原句整理要求 |
+| E03-A/B/C | A合并目录草稿，B/C统一整理要求文本 |
+| N02-A/B | A仅转换锚定回取的原文，B展开列项及输入实际评价维度 |
 | N03/N04/N05 | 融合、C补充、最终润色 |
 
-业务文本采用text-v1，不走旧字段/引用解析；E00及定位任务仅解析必要的短控制信息。模型不承担程序ID和来源偏移。`model/task_specs.py`按任务转交渲染。每次独立请求携带完整资料。新prompt尚待用户参与定稿，不能将机械测试当真实小模型能力证明。
+业务文本采用text-v1，不走旧字段/引用解析；E00及定位任务仅解析必要的短控制信息。模型不承担程序ID和来源偏移。`model/task_specs.py`按任务转交渲染。每次独立请求携带完整资料。prompt按用户审阅稿修订，不能将机械测试当真实小模型能力证明。
 
 ## 6. 执行与train批量
 
@@ -143,3 +143,12 @@ stages是可重建视图，采用权威在SQLite/artifacts。completed仅表示�
 当前已知边界：规则仍可能选过宽或漏选，阅读路径可能误归属；原表和模型展开文字不一定可唯一映射行，表内范围依赖展开文本边界；锚点不存在或重复时保留问题；没有全文金标准。真实模型prompt和局部判断质量需要后续小批文本train验证。
 
 旧`workflow/runner.py`为P流程；`workflow/text_runner.py::run`为0.12文本流程。当前仅复用后者的调用、预算、分块方法，默认不运行其旧总编排。
+
+
+## 9. 0.13.1提示词与接口适配
+
+`model/text_tasks.py::TextMaterial`分开保存本次章节/目标/共同条件与字面原文。render把上下文填入模板，输出单一user消息，说明与资料用`---`分隔。`train_query`对这一条user消息原样传输；既有P多角色请求继续兼容。TokenBudget与单条/合批wire_request共用序列化，预算即实际完整query的预算。锚点模式原文规划按实际E02提示计量。
+
+`no_content`仅精确识别完整回答“无”（E00仍三态）；原始text和no_content写入model_result，空答继续错误。CollaborativeRunner过滤无内容块与汇总，direct的A不再调用N02-A，anchors的A回取成功后用N02-A生成一次目录。N03输入标明格式目录、评审目录或已融合草稿的真实角色。已有非空目录时后继回答无，保留草稿并记录问题，不把无导出为成功目录。
+
+版本为0.13.1、flow为collaborative-directory-2、prompt为self-contained-prompts-1。旧流程导出兼容仍保留。`text_batch_tokens=3000`和原分块/固定汇总策略本轮不变；9000感知阈值、4000拆分目标仍是待实施计划。
