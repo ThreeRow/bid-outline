@@ -6,6 +6,7 @@ from pathlib import Path
 
 from bid_outline import __version__
 from bid_outline.document.locate import locate
+from bid_outline.document.organization import route_organization, VERSION as ROUTING_VERSION
 from bid_outline.document.token_chunks import token_chunks
 from bid_outline.document.chunks import split_chunk
 from bid_outline.document.text_chunks import expandable_tables
@@ -77,7 +78,10 @@ class TextWorkflowRunner:
             headers = list(dict.fromkeys(row['text'] for ref in chunk.owned_refs for eid in ref.element_ids
                 if elements[eid].kind == 'expanded_table_text'
                 for row in elements[eid].metadata.get('table_rows', []) if row.get('header')))
-            return ('章节：' + ' / '.join(chunk.section_context) +
+            projected_context = '\n'.join(dict.fromkeys(elements[eid].metadata.get('shared_context', '')
+                for ref in chunk.owned_refs for eid in ref.element_ids if elements[eid].metadata.get('shared_context')))
+            return ('整理类别：' + located.category + '\n章节：' + ' / '.join(chunk.section_context) +
+                    ('\n共同条件/表头：\n' + projected_context if projected_context else '') +
                     ('\n涉及小节：\n' + sections if sections else '') +
                     ('\n辅助条件（仅供理解）：\n' + notes if notes else '') +
                     ('\n原表表头（辅助理解）：\n' + '\n'.join(headers) if headers else '') +
@@ -87,28 +91,33 @@ class TextWorkflowRunner:
                 self.messages(task, material(c, '')), self.config.max_tokens, task_type=task)),
             text_tokens=budget.text_tokens,
             fits=lambda c: budget.text_tokens(c.text) <= self.config.text_batch_tokens and self.fits(task, material(c)))
-        results = []
         async def process(chunk):
             source = self.artifacts.put('located_chunk', chunk.model_dump(mode='json'), parents=[parent])
             try:
                 if budget.text_tokens(chunk.text) > self.config.text_batch_tokens:
                     raise BudgetExceeded('indivisible source exceeds text processing limit')
-                result = await self.call(task, material(chunk), [source], located.category + ':' + chunk.chunk_id)
-                results.append(result)
+                result = await self.organize_call(task, material(chunk), chunk.text, [source], located.category + ':' + chunk.chunk_id)
+                headings = [' / '.join(span['section_path']) for span in chunk.section_spans]
+                return [{**result, 'source_heading': '；'.join(headings) or ' / '.join(chunk.section_context)}]
             except (BudgetExceeded, OutputTruncated) as exc:
                 children = split_chunk(document, chunk)
                 if children:
+                    outputs = []
                     for child in children:
-                        await process(child)
+                        outputs.extend(await process(child))
+                    return outputs
                 else:
                     self.unprocessed.append({'task_type': task, 'scope': chunk.chunk_id,
                         'source_refs': [r.model_dump(mode='json') for r in chunk.owned_refs], 'error': str(exc)})
             except TaskExecutionError as exc:
                 self.unprocessed.append({'task_type': task, 'scope': chunk.chunk_id, 'parents': [source], 'error': str(exc)})
-        # Preserve source order within each selected range.
-        for chunk in chunks:
-            await process(chunk)
-        return located.category, results
+            return []
+        # Requests may finish out of order; flatten in planned source order.
+        groups = await bounded_map(process, chunks, workers=self.config.workers, capacity=self.config.queue_capacity)
+        return located.category, [item for group in groups for item in group]
+
+    async def organize_call(self, task, material, source, parents, name):
+        return await self.call(task, material, parents, name)
 
     def generation_batches(self, task, text, wrap=lambda text: text):
         """Pack complete paragraphs/lines, retaining all text and explicit oversize units."""
@@ -150,6 +159,7 @@ class TextWorkflowRunner:
             'flow_version': FLOW_VERSION, 'code_version': __version__, 'config_snapshot': self.config.model_dump(mode='json'),
             'document_artifact_id': doc_id, 'status': 'running', 'stage': 'location',
             'prompt_identity': prompt_identity, 'input_hashes': [document.source_hash],
+            'organization_routing_version': ROUTING_VERSION,
             'reader_name': document.reader_name, 'reader_version': document.reader_version,
             'model_identity': self.config.model,
             'started_at': previous['started_at'] if previous else now(), 'semantic_quality': 'not_evaluated',
@@ -167,12 +177,15 @@ class TextWorkflowRunner:
             records = [r.record() for r in ranges]
             location_id = self.artifacts.put('located_ranges', {'ranges': records}, parents=[doc_id])
             write_atomic(self.run_dir / 'stages/located_ranges.json', json.dumps(records, ensure_ascii=False, indent=2))
+            organization_ranges, organization_plan = route_organization(document, ranges)
+            organization_id = self.artifacts.put('organization_plan', organization_plan, parents=[location_id])
+            write_atomic(self.run_dir / 'stages/organization_plan.json', json.dumps(organization_plan, ensure_ascii=False, indent=2))
             self.manifest['stage'] = 'organization'
             self.save_manifest()
             organized = {'A': [], 'B': [], 'C': []}
             async def organize(r):
-                return await self.organize(r, location_id)
-            values = await bounded_map(organize, ranges, workers=self.config.workers, capacity=self.config.queue_capacity)
+                return await self.organize(r, organization_id)
+            values = await bounded_map(organize, organization_ranges, workers=self.config.workers, capacity=self.config.queue_capacity)
             for category, items in values:
                 organized[category].extend(items)
             drafts = []
@@ -221,8 +234,9 @@ class TextWorkflowRunner:
                 'draft_artifact_id': current['artifact_id'] if current else None,
                 'completion_scope': '规则选出的候选范围，经文本整理生成目录；未进行全文漏提或目录语义检查。',
                 'located_ranges': records, 'stages': self.stages, 'issues': self.issues,
+                'organization_plan': organization_plan,
                 'unprocessed_ranges': self.unprocessed}
-            result_id = self.artifacts.put('run_result', result, parents=[doc_id, location_id] + [s['artifact_id'] for s in self.stages])
+            result_id = self.artifacts.put('run_result', result, parents=[doc_id, location_id, organization_id] + [s['artifact_id'] for s in self.stages])
             self.manifest.update(status=status, stage='finished', finished_at=now(), result_artifact_id=result_id,
                 unprocessed_ranges=self.unprocessed, issue_count=len(self.issues), model_stats=self.executor.stats)
             self.save_manifest()

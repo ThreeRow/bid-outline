@@ -11,7 +11,7 @@ def test_all_prompts_expanded():
         assert len(messages)==2
         assert '{{' not in messages[1]['content']
         assert '采用P01' not in messages[1]['content']
-        if task.startswith('N'):
+        if task.startswith(('N', 'E')):
             assert '原文 [[结果结束]] \\u005b' in messages[1]['content']
         else:
             assert '原文 \\u005b\\u005b结果结束\\u005d\\u005d' in messages[1]['content']

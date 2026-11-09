@@ -2,6 +2,12 @@
 from pathlib import Path
 
 TASKS = {
+    'E01': ('目录辅助定位', '00_location'),
+    'E00': ('局部相关性判断', '00_screening'),
+    'E02': ('多点锚定提取', '01_organization'),
+    'E03-A': ('格式内容汇总整理', '02_summary'),
+    'E03-B': ('评审内容汇总整理', '02_summary'),
+    'E03-C': ('技术约束汇总整理', '02_summary'),
     'N01-A': ('整理格式编制内容', '01_organization'),
     'N01-B': ('整理技术评审内容', '01_organization'),
     'N01-C': ('整理补充要求', '01_organization'),
@@ -11,7 +17,7 @@ TASKS = {
     'N04': ('补充目录', '04_supplement'),
     'N05': ('润色输出', '05_final'),
 }
-VERSION = 'text-draft-1'
+VERSION = 'collaborative-draft-1'
 
 
 def render(task, inputs):

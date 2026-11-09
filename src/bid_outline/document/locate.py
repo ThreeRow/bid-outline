@@ -62,7 +62,7 @@ def submission_table(element):
 
 
 def locate(document):
-    """Select sections for A/B, local submission contexts for C; merge overlaps."""
+    """Legacy 0.12 baseline; current workflow uses position_hits after directory hints."""
     elements = sorted(document.elements, key=lambda e: e.order)
     selected = {category: {} for category in 'ABC'}
     for _, grouped in groupby(range(len(elements)), lambda i: tuple(elements[i].section_path)):
@@ -93,4 +93,21 @@ def locate(document):
             key = hashlib.sha256(json.dumps([category, [e.element_id for e in subset.elements]]).encode()).hexdigest()[:20]
             output.append(LocatedRange('range_' + key,
                                        category, subset, sorted({r for i in indices for r in positions[i]})))
+    return output
+
+
+def position_hits(index, positions):
+    """Find local signals ONLY in rule/model-selected section paths."""
+    from .location_rules import LOCAL, WEAK, compact
+    output = []
+    for n, unit in enumerate(index.units):
+        for category in sorted(positions.get(tuple(unit.element.section_path), set())):
+            hits = [m[0] for m in LOCAL[category].finditer(compact(unit.text))]
+            if (category == 'A' and unit.element.section_path and re.search(
+                    r'方案|施工组织设计|技术标部分|技术文件', unit.element.section_path[-1])):
+                hits = hits or ['技术编制栏目内完整内容']
+            if hits:
+                output.append({'category': category, 'index': n,
+                    'weak': bool(WEAK.search(unit.text)),
+                    'hits': hits, 'unit': unit.record()})
     return output

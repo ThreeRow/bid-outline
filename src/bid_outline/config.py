@@ -29,6 +29,14 @@ class AppConfig(BaseModel):
     max_run_calls: int = Field(2000, gt=0)
     chunk_chars: int = Field(5000, gt=0)
     text_batch_tokens: int = Field(3000, gt=0)
+    extraction_mode: Literal['direct', 'anchors'] = 'direct'
+    directory_assistance: bool = True
+    local_context_chars: int = Field(1200, gt=0)
+    stop_after: Literal['candidates', 'organized', 'directory'] = 'directory'
+    summary_levels: int = Field(3, ge=1, le=5)
+    train_batch_size: int = Field(1, gt=0)
+    train_batch_wait_ms: int = Field(20, ge=0, le=1000)
+    train_max_batches: int = Field(1, gt=0)
     tokenizer: str | None = None
     screening_reserve_tokens: int = Field(256, ge=0)
     extra_body: dict = Field(default_factory=dict)

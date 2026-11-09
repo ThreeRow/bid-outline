@@ -201,3 +201,36 @@ python scripts/run_train_batch.py \
 输出必须用新目录。保持阶段开关比较旧目录协议时，将`--directory-protocol`改为`strict`。
 Markdown目录仍为新标题保留一行要求依据，由程序生成节点身份、父子关系和顺序；
 原有结构保护与覆盖检查保留。详见[23号说明](../docs/23_分任务thinking与Markdown目录实验.md)。
+
+
+## ABC候选范围诊断（生成之前）
+
+`evaluate_location.py`对`test_inputs/input`的24份文件执行离线OOXML结构适配和当前定位规则；`--plan`另保存真实N01分块路径的计划输入，不调用模型。它不是完整document-reading流程。
+
+```bash
+python scripts/evaluate_location.py --output reviews/new_offline_location --plan
+```
+
+`evaluate_reading_location.py`实际调用独立document-reading CLI（Docling、模型标题识别及表格展开），随后调用相同定位规则，导出ABC候选原文；不执行N01整理或目录生成。默认2文件并行、每份2个阅读请求，thinking关闭，使用本地tokenizer。此命令会请求配置的阅读服务。
+
+```bash
+python scripts/evaluate_reading_location.py --output reviews/new_reading_location
+```
+
+两个命令都要求新输出目录，保留输入哈希、原始产物及诊断。S01—S24沿用`docs/内容对应关键词分析/`报告编号。真实阅读诊断脚本在报告中与`reviews/rule_location_24_20261109_baseline`逐条对照；若复现时没有该基线，先保留每份reading与extraction产物，再另作对照。当前规则命中只表示候选，不等于已提纯的ABC要求。
+
+0.12.1起`evaluate_location.py --plan`先执行与runner相同的类别路由，再保存N01输入；每个planning目录新增organization_plan.json。上一批未路由的计划保持历史原样，不覆盖。
+
+
+## 0.13.0协同提取
+
+新默认入口为CollaborativeRunner，使用train.text.example.json（支持2条query微批），优先复用已有reading产物：
+
+```bash
+python -m bid_outline run --reader reading --input /path/reading --config configs/train.text.example.json --run /path/new-run --stop-after organized
+python -m bid_outline resume --run /path/new-run --stop-after directory
+```
+
+`--stop-after candidates`同样会执行目录辅助及必要局部判断，不是纯离线命令。纯规则回放用`python scripts/evaluate_positioned.py --output reviews/new_position_replay`，该脚本不会调用模型，弱命中只列为待判断。旧evaluate_location/evaluate_reading_location保留历史基线，不代表新规则或新prompt的效果。
+
+`--outline-thinking`现在同时覆盖E03-A/B/C和N02/N03/N04/N05；不改变E01/E00/E02及N01的单独配置。新任务均使用text-v1，旧directory-protocol不影响它们。真实实测前需用户参与prompt定稿；本轮尚未执行新模型请求。

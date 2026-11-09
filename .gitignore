@@ -31,6 +31,7 @@ venv/
 /test_materials/
 /docs/*
 !/docs/CODE_GUIDE.md
+!/docs/25_规则与模型协同提取实现计划.md
 *.log
 *.sqlite3
 *.sqlite3-journal

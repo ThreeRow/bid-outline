@@ -81,7 +81,7 @@ async def run(args):
                                          for i in range(7, 19)})
         from bid_outline.model.text_tasks import TASKS
         data['thinking_by_task'].update({task: args.outline_thinking == 'on'
-                                        for task in TASKS if not task.startswith('N01')})
+                                        for task in TASKS if task.startswith(('N02', 'E03')) or task in {'N03', 'N04', 'N05'}})
     if getattr(args, 'directory_protocol', None):
         data['directory_protocol'] = args.directory_protocol
     config = AppConfig.model_validate(data)

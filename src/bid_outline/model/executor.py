@@ -45,6 +45,8 @@ class ModelExecutor:
 
     def __init__(self, config, client, repository, artifacts):
         self.config, self.client = config, client
+        if hasattr(client, 'enable_batching'):
+            client.enable_batching(repository.run_dir)
         self.repository, self.artifacts = repository, artifacts
         self.calls_dir = Path(repository.run_dir) / 'calls'
         self.calls_dir.mkdir(parents=True, exist_ok=True)
@@ -210,7 +212,7 @@ class ModelExecutor:
             dependency_hashes=dependency_hashes,
             template_version=spec.version, parser_version=spec.parser_version, business_rules_version='01-05-v1',
             output_protocol=self.config.protocol_for(task_type), protocol_version=PROTOCOL_VERSION,
-            config=self.config.model_dump(mode='json'), rendered_messages=messages, executor_version='1.8.0')
+            config=self.config.model_dump(mode='json', exclude={'stop_after'}), rendered_messages=messages, executor_version='1.9.0')
         fingerprint = hashlib.sha256(json.dumps(fingerprint_data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         prior = self.repository.get_task(task_id)
         if prior and prior.get('fingerprint') == fingerprint and prior.get('status') == 'succeeded':
@@ -250,6 +252,8 @@ class ModelExecutor:
         if truncated is not None:
             raise truncated
         if train_mode:
+            if hasattr(self.client, 'saved_ticket'):
+                train_ticket = self.client.saved_ticket(task_id, fingerprint)
             for directory in reversed(sorted(matching)):
                 if (directory / 'response.model.json').exists():
                     continue  # Completed output: normal format retry may submit anew.
@@ -269,7 +273,7 @@ class ModelExecutor:
                     if isinstance(body, dict) and body.get('status') == 1 and isinstance(body.get('responseId'), str) and body['responseId']:
                         train_ticket = {'response_id': body['responseId'], 'query_id': task_id, 'submission': body}
                         break
-                if (directory / 'train.submit_started.json').exists():
+                if (directory / 'train.submit_started.json').exists() and train_ticket is None:
                     raise TaskExecutionError('train submission outcome uncertain and no saved responseId; automatic resubmission refused')
         for directory in matching:
             if (directory / 'meta.json').exists():
@@ -277,7 +281,7 @@ class ModelExecutor:
                 if previous_meta.get('context_exceeded'):
                     raise BudgetExceeded('service rejected this complete input budget; reorganize the task')
                 if (previous_meta.get('error_kind') == 'transport' and previous_meta.get('retryable') is False
-                        and not (train_mode and train_ticket and previous_meta.get('poll_resume_available'))):
+                        and not (train_mode and train_ticket and (previous_meta.get('poll_resume_available') or train_ticket.get('batch_id')))):
                     raise TaskExecutionError('non-retryable service error for this unchanged task')
         max_tokens = spec.max_tokens or self.config.max_tokens
         try:
@@ -373,6 +377,12 @@ class ModelExecutor:
                 wire = {'response_id': train_ticket['response_id']} if train_ticket else self.client.wire_request(request)
                 meta['request_path'] = '/api/v2/get_resp_data' if train_ticket else '/api/v2/chat_train'
                 meta['request_origin'] = 'train_poll_resume' if train_ticket else 'train_submission'
+                if getattr(self.client, 'batcher', None) is not None and self.config.protocol_for(task_type) == 'text-v1':
+                    # Actual merged HTTP payload is written once at the shared
+                    # batch boundary; this file describes only the task member.
+                    wire = {'logical_member': wire,
+                            'actual_http_audit': 'train.batch.json / shared train_batches audit'}
+                    meta['request_origin'] = 'train_shared_poll_resume' if train_ticket else 'train_batch_member'
                 await self._write(directory / 'request.http.json', wire)
             else:
                 await self._write(directory / 'request.http.json', {k: v for k, v in request.items() if not k.startswith('_')})

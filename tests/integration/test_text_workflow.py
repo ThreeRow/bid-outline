@@ -8,7 +8,7 @@ from bid_outline.document.locate import locate
 from bid_outline.domain import Document, DocumentElement, SourceRef
 from bid_outline.export import export_result
 from bid_outline.model.client import FakeModelClient
-from bid_outline.workflow import WorkflowRunner
+from bid_outline.workflow.text_runner import TextWorkflowRunner as WorkflowRunner
 
 
 def document(items):
@@ -153,9 +153,8 @@ def test_c_table_localization_retains_only_candidate_rows_and_context():
 
 def test_c_failure_retains_ab_directory_and_marks_incomplete(tmp_path):
     async def run():
-        # C's context includes the preceding format section, organized separately.
-        client = FakeModelClient({'N01-A': ['技术方案'], 'N01-C': ['格式上下文', '补充应急方案'],
-            'N02-A': ['技术方案'], 'N04': ['', ''], 'N05': ['# 技术方案']})
+        client = FakeModelClient({'N01-A': ['技术方案'], 'N01-C': ['补充应急方案'],
+            'N02-A': ['技术方案'], 'N04': [''], 'N05': ['# 技术方案']})
         runner = WorkflowRunner(tmp_path, config(), client)
         try:
             result = await runner.run(document([
@@ -238,8 +237,8 @@ def test_cli_uses_text_flow_and_export_is_read_only(tmp_path, monkeypatch, capsy
     doc = document([(['投标文件格式'], '总体技术方案')])
     monkeypatch.setattr(cli, 'read_document', lambda *args, **kwargs: doc)
     fixture = tmp_path / 'responses.json'
-    fixture.write_text(json.dumps({'N01-A': ['总体技术方案'], 'N02-A': ['总体技术方案'],
-                                   'N05': ['# 总体技术方案']}))
+    fixture.write_text(json.dumps({'E01': ['A：投标文件格式'], 'N01-A': ['总体技术方案'],
+        'E03-A': ['总体技术方案'], 'N02-A': ['总体技术方案'], 'N05': ['# 总体技术方案']}))
     run_dir = tmp_path / 'run'
     assert cli.main(['run', '--input', str(tmp_path / 'input'), '--run', str(run_dir),
                      '--fake-responses', str(fixture)]) == 0
@@ -247,7 +246,7 @@ def test_cli_uses_text_flow_and_export_is_read_only(tmp_path, monkeypatch, capsy
     assert cli.main(['export', '--run', str(run_dir)]) == 0
     capsys.readouterr()
     manifest, tasks, attempts = cli.read_state(run_dir)
-    assert manifest['flow_version'] == 'text-directory-1'
-    assert {t['task_type'] for t in tasks} == {'N01-A', 'N02-A', 'N05'}
-    assert len(attempts) == 3
+    assert manifest['flow_version'] == 'collaborative-directory-1'
+    assert {t['task_type'] for t in tasks} == {'E01', 'N01-A', 'E03-A', 'N02-A', 'N05'}
+    assert len(attempts) == 5
     assert '# 总体技术方案' in (run_dir / 'exports/backbone.md').read_text()

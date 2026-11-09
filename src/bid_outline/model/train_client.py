@@ -78,6 +78,9 @@ class TrainModelClient:
         raise ValueError('TrainModelClient requires generate_audited via ModelExecutor')
 
     async def generate_audited(self, request, audit, ticket=None):
+        if (getattr(self, 'batcher', None) is not None and ticket is None
+                and self.config.protocol_for(request['_task_type']) == 'text-v1'):
+            return await self.batcher.generate(request, audit)
         if ticket is None:
             payload = self.wire_request(request)
             await audit('train.submit_started.json', {'query_id': payload['query_list'][0]['id']})
@@ -90,6 +93,21 @@ class TrainModelClient:
             await audit('train.ticket.json', ticket)
         else:
             await audit('train.ticket.json', ticket)
+        body = await self.poll_body(ticket, audit)
+        return self._response(body, ticket)
+
+    async def poll_body(self, ticket, audit, *, shared=False):
+        if getattr(self, 'batcher', None) is not None and ticket.get('batch_id'):
+            terminal = self.batcher.root / ticket['batch_id'] / 'train.terminal.json'
+            if terminal.exists():
+                import json
+                body = json.loads(terminal.read_text())
+                await audit('train.terminal.json', body)
+                return body
+            if not shared:
+                body = await self.batcher.resume_body(ticket)
+                await audit('train.terminal.json', body)
+                return body
         deadline = time.monotonic() + self.config.train_poll_timeout_seconds
         failures, number = 0, 0
         while True:
@@ -115,7 +133,7 @@ class TrainModelClient:
                 raise TrainClientError('train poll missing terminal/progress message', raw=body, poll_resume_available=True)
             if msg.strip() != '任务进行中':
                 await audit('train.terminal.json', body)
-                return self._response(body, ticket)
+                return body
             # Partial data is not adopted until the batch is terminal.
             await asyncio.sleep(min(self.config.train_poll_interval_seconds, max(0, deadline-time.monotonic())))
 
@@ -124,6 +142,10 @@ class TrainModelClient:
         rows = body.get('data')
         if not isinstance(rows, list):
             raise TrainClientError('terminal train response missing data list', raw=body)
+        if ticket.get('query_ids'):
+            returned = {str(row.get('id')) for row in rows if isinstance(row, dict)}
+            if returned - set(ticket['query_ids']):
+                raise TrainClientError('terminal batch contains unexpected query IDs', raw=body)
         selected = [row for row in rows if isinstance(row, dict) and str(row.get('id')) == str(ticket['query_id'])]
         if len(selected) != 1:
             raise TrainClientError('train result must contain exactly one matching query id', raw=body)
@@ -147,4 +169,16 @@ class TrainModelClient:
                              ticket['response_id'], reasoning)
 
     async def aclose(self):
+        if getattr(self, 'batcher', None) is not None:
+            await self.batcher.aclose()
         await self.http.aclose()
+
+    def enable_batching(self, run_dir):
+        if self.config.train_batch_size > 1:
+            from .train_batch import TrainBatcher
+            self.batcher = TrainBatcher(self, run_dir)
+
+    def saved_ticket(self, task_id, fingerprint):
+        if getattr(self, 'batcher', None) is not None:
+            return self.batcher.saved_ticket(task_id, fingerprint)
+        return None

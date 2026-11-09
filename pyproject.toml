@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bid-outline"
-version = "0.12.0"
+version = "0.13.0"
 description = "Auditable technical bid outline workflow"
 requires-python = ">=3.11"
 dependencies = ["httpx>=0.28,<0.29", "pydantic>=2.13,<3"]

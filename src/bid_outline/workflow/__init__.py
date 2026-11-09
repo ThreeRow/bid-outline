@@ -1,5 +1,5 @@
 """Finite workflow orchestration; models never select tools or stages."""
 
-from .text_runner import TextWorkflowRunner as WorkflowRunner
+from .collaborative_runner import CollaborativeRunner as WorkflowRunner
 
 __all__ = ["WorkflowRunner"]

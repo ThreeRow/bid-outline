@@ -20,7 +20,7 @@ def write_atomic(path: Path, content: str) -> None:
 
 def export_result(result: dict, output: Path) -> dict[str, str]:
     output = Path(output)
-    if result.get('flow_version') == 'text-directory-1':
+    if result.get('flow_version') in ('text-directory-1', 'collaborative-directory-1'):
         text = result.get('directory_text') or result.get('draft_text') or '尚无可用目录草稿。'
         label = '最终目录文本（未作语义验收）' if result.get('directory_text') else '未完成的目录草稿'
         issues = result.get('issues', []) + result.get('unprocessed_ranges', [])
@@ -31,6 +31,10 @@ def export_result(result: dict, output: Path) -> dict[str, str]:
                 or '无执行问题记录；未进行全文漏提或目录语义检查。') + '\n',
             'provenance.json': json.dumps(result, ensure_ascii=False, indent=2) + '\n',
         }
+        if result.get('stop_after') in ('candidates', 'organized'):
+            files.pop('backbone.md')
+        if result.get('organized'):
+            files.update({f'{category}.md': text for category, text in result['organized'].items()})
         for name, content in files.items():
             write_atomic(output / name, content)
         return {name: str((output / name).resolve()) for name in files}

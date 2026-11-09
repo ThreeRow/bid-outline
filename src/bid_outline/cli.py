@@ -95,6 +95,10 @@ async def execute(args) -> dict:
         config = load_config(args.config) if args.config else AppConfig.model_validate(manifest["config_snapshot"])
     else:
         config = load_config(args.config)
+    if getattr(args, 'stop_after', None):
+        config.stop_after = args.stop_after
+    if getattr(args, 'extraction_mode', None):
+        config.extraction_mode = args.extraction_mode
     with run_lock(directory):
         document = None
         if args.command == "run":
@@ -161,6 +165,8 @@ def main(argv=None) -> int:
         command.add_argument("--run", type=Path, required=True)
         command.add_argument("--output", type=Path, help="最终结果目录")
         command.add_argument("--config", type=Path)
+        command.add_argument('--stop-after', choices=['candidates', 'organized', 'directory'], help='运行阶段终点；resume可向后推进并复用已采用提取')
+        command.add_argument('--extraction-mode', choices=['direct', 'anchors'], help='块直接整理或多点锚定提取')
         command.add_argument("--fake-responses", type=Path, help="预设文本响应JSON；只验证流程，不证明语义质量")
         command.add_argument("--reuse-calls-from", type=Path, action="append", default=[],
                              help="显式复用指定旧运行中完全相同HTTP请求的成功响应；当前契约重新校验")

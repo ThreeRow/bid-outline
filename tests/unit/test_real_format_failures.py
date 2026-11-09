@@ -32,7 +32,7 @@ def test_prompt_instructions_are_outside_result_envelope():
         '按要求或相互关联的要求组输出：', '有建议时重复：', '有问题时重复：',
     }
     for task, name in TASK_NAMES.items():
-        if task == 'P19' or task.startswith('N'):
+        if task == 'P19' or task.startswith(('N', 'E')):
             continue
         text = (PROMPTS / f'{task}_{name}.txt').read_text()
         body = text.split('[[结果开始]]', 1)[1].split('[[结果结束]]', 1)[0]
