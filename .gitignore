@@ -33,6 +33,7 @@ venv/
 !/docs/CODE_GUIDE.md
 !/docs/25_规则与模型协同提取实现计划.md
 !/docs/26_模型服务调用说明.md
+!/docs/27_Prompt设计原则与示例.md
 *.log
 *.sqlite3
 *.sqlite3-journal
