@@ -3,11 +3,13 @@ import json
 import re
 
 from bid_outline.document.anchors import fields, match_anchors
-from bid_outline.document.locate import LocatedRange, position_hits
-from bid_outline.document.location_rules import LOCAL, VERSION, compact, position_categories
+from bid_outline.document.locate import position_hits
+from bid_outline.document.location_rules import LOCAL, DIRECT, VERSION, compact, position_categories
 from bid_outline.document.source_index import SourceIndex
+from bid_outline.document.section_blocks import SectionBlocks
 from bid_outline.export.markdown import write_atomic
 from bid_outline.model.text_tasks import TextMaterial, with_feedback, CATEGORY_CONTENT
+from bid_outline.model.packing import pack_items
 from .common import identity, bounded_map
 
 
@@ -15,6 +17,8 @@ class Extraction:
     def __init__(self, runner, document, source_id):
         self.runner, self.index, self.source_id = runner, SourceIndex(document), source_id
         self.config = runner.config
+        self.blocks = SectionBlocks(self.index)
+        self.model_positions = []
         self.positions = {tuple(path): set(position_categories(path)) for path in self.index.sections}
         self.candidates, self.selected, self.controls = [], [], []
 
@@ -41,16 +45,15 @@ class Extraction:
                     errors.append('无法识别目录定位行:' + line[:100])
                 continue
             category, title = m.groups()
-            found = [path for path in self.index.sections if compact(title) in
-                     (compact(' / '.join(path)), compact(path[-1]))]
+            found = self.blocks.matching(title, compact)
             if len(found) != 1:
                 errors.append(f'{title}匹配{len(found)}个位置')
             else:
-                matches.append((tuple(found[0]), category))
+                matches.append((found[0].key, category))
         return matches, errors
 
     async def directory(self):
-        overview = '\n'.join(' / '.join(path) for path in self.index.sections)
+        overview = '\n'.join(' / '.join(node.path) for node in self.blocks.nodes.values())
         # Missing directory is explicit; source-derived structural paths are still useful.
         if not overview:
             self.runner.issues.append({'kind': 'missing_section_index', 'detail': '无可定位章节；不退回全文盲匹配'})
@@ -63,8 +66,7 @@ class Extraction:
                 continue
             found, errors = self.parse_hints(result['text'])
             if errors:
-                retry = await self.runner.attempt('E01', TextMaterial(page, '上次定位问题：\n' + '\n'.join(errors) +
-                    '\n请根据所给目录重新选择真实章节。'),
+                retry = await self.runner.attempt('E01', TextMaterial(page, feedback='上次定位问题：\n' + '\n'.join(errors)),
                     [self.source_id, result['artifact_id']], '目录定位澄清')
                 if retry:
                     more, errors = self.parse_hints(retry['text'])
@@ -73,31 +75,51 @@ class Extraction:
             if errors:
                 self.note('E01', '目录定位', '；'.join(errors))
             self.controls.append(result['artifact_id'])
-            for path, category in found:
-                # A selected parent chapter includes its descendant paths.
+            for key, category in found:
+                self.model_positions.append((key, category))
+                path = self.blocks.nodes[key].path
                 for original in self.positions:
-                    if original[:len(path)] == path:
+                    if original[:len(path)] == tuple(path):
                         self.positions[original].add(category)
 
     async def locate(self):
-        self.save('section_index', {'sections': self.index.overview(), 'rules_version': VERSION})
+        self.save('section_index', {'sections': self.blocks.overview(), 'rules_version': VERSION})
         await self.directory()
         self.candidates = position_hits(self.index, self.positions)
         candidate_id = self.save('rule_candidates', {'positions': [
             {'path': list(path), 'categories': sorted(categories)} for path, categories in self.positions.items()],
             'candidates': self.candidates}, [self.source_id] + self.controls)
+        selected = {}
+        def select(key, category, reason):
+            selected.setdefault((key, category), []).append(reason)
+        for node in self.blocks.nodes.values():
+            for category, pattern in DIRECT.items():
+                if pattern.search(compact(node.path[-1])):
+                    select(node.key, category, '明确章节名称规则')
+        for key, category in self.model_positions:
+            select(key, category, 'E01目录辅助定位')
+
+        def covered(eid, category):
+            return any((key, category) in selected for key in self.blocks.ancestry.get(eid, []))
+        # Only generic chapter locations need local signal decisions. A direct
+        # chapter remains complete even if one of its lines looks irrelevant.
+        broad = [c for c in self.candidates if not covered(c['unit']['element_id'], c['category'])]
         # Merge identical local contexts for the same category; one decision
         # controls just these hits, never erases other hits in the section.
         groups = {}
-        for candidate in self.candidates:
+        for candidate in broad:
             if not candidate['weak']:
                 continue
-            context = self.index.context(candidate['index'])
-            path = candidate['unit']['path']
-            key = (candidate['category'], tuple(path), context)
+            unit = self.index.units[candidate['index']]
+            section_key = self.blocks.element_section[unit.element.element_id]
+            context = '\n'.join(other.text for other in self.index.units[
+                max(0, candidate['index']-1):candidate['index']+2]
+                if self.blocks.element_section.get(other.element.element_id) == section_key)
+            key = (candidate['category'], section_key, context)
             groups.setdefault(key, []).append(candidate)
         async def screen(item):
-            (category, path, context), candidates = item
+            (category, section_key, context), candidates = item
+            path = self.blocks.nodes[section_key].path
             excerpted = False
             if len(context) > self.config.local_context_chars:
                 # This is explicitly a local excerpt for the gate, never the
@@ -133,26 +155,26 @@ class Extraction:
             if result:
                 self.controls.append(result['artifact_id'])
         self.save('local_screening', records, [candidate_id] + self.controls)
-        ranges = {'A': [], 'B': [], 'C': []}
-        for c in self.candidates:
+        for c in broad:
             if decisions.get((c['category'], c['index'])) == '排除':
                 continue
-            ranges[c['category']].extend(self.index.complete_units(c['index']))
-        located = []
-        for category, units in ranges.items():
-            merged = []
-            for unit in sorted(units, key=lambda u: (u.element.order, u.start, u.end)):
-                if merged and merged[-1].element.element_id == unit.element.element_id and unit.start <= merged[-1].end:
-                    previous = merged[-1]
-                    previous.end = max(previous.end, unit.end)
-                    previous.text = unit.element.text[previous.start:previous.end]
-                    previous.key = f'{unit.element.element_id}:{previous.start}:{previous.end}'
-                else:
-                    merged.append(unit)
-            if merged:
-                doc = self.index.document_for(merged)
-                key = identity('selected_', [VERSION, category, [u.record() for u in merged]])
-                located.append(LocatedRange(key, category, doc, ['position_scoped_match']))
+            key = self.blocks.element_section[c['unit']['element_id']]
+            select(key, c['category'], '位置内线索：' + '、'.join(c['hits']))
+        # Same-category descendants are already owned by a selected ancestor.
+        # Keep their evidence but never process overlapping body twice.
+        collapsed = {}
+        for (key, category), reasons in selected.items():
+            node = self.blocks.nodes[key]
+            ancestors = []
+            parent = node.parent
+            while parent:
+                ancestors.append(parent)
+                parent = self.blocks.nodes[parent].parent
+            owner = next((p for p in reversed(ancestors) if (p, category) in selected), key)
+            collapsed.setdefault((owner, category), []).extend(reasons)
+        located = [self.blocks.located(key, category, list(dict.fromkeys(reasons)))
+                   for (key, category), reasons in sorted(collapsed.items(),
+                       key=lambda item:(self.blocks.nodes[item[0][0]].positions[0], item[0][1]))]
         self.selected = [r.record() for r in located]
         aid = self.save('selected_ranges', {'ranges': self.selected}, [candidate_id] + self.controls)
         return located, aid
@@ -178,8 +200,7 @@ class Extraction:
             except ValueError as exc:
                 error = str(exc)
             if round_no == 0:
-                revised = await self.runner.attempt('E02', with_feedback(task_material, '上次匹配问题：' + error +
-                    '\n请根据所给原文重新提供定位句。'),
+                revised = await self.runner.attempt('E02', with_feedback(task_material, '上次匹配问题：' + error),
                     parents + [result['artifact_id']], name + ':修正锚点')
                 if revised:
                     result = revised
@@ -187,36 +208,44 @@ class Extraction:
             self.note('E02', name, error + '；回退对应类别的完整块整理')
             return None
 
-    async def summarize(self, category, items):
+    async def summarize(self, category, items, *, force=False):
         items = [item for item in items if not item.get('no_content')]
         if not items:
             return []
+        if len(items) == 1 and not force and not items[0].get('requires_consolidation'):
+            return items
         task = 'E03-' + category
+        def material(group):
+            return '\n\n'.join(('来源区域：' + x['source_heading'] + '\n' if x.get('source_heading') else '')
+                                 + x['text'] for x in group)
+
+        def fits(group):
+            body = material(group)
+            return self.runner.perception_fits(task, body)
+
         current = items
         for level in range(self.config.summary_levels):
-            # Pack full text records, not line slices that can detach conditions.
-            groups, group = [], []
-            for item in current:
-                candidate = group + [item]
-                body = '\n\n'.join(x['text'] for x in candidate)
-                if group and (not self.runner.fits(task, body) or
-                              self.runner.executor.budget.text_tokens(body) > self.config.text_batch_tokens):
-                    groups.append(group)
-                    group = []
-                group.append(item)
-            if group:
-                groups.append(group)
-            outputs = []
-            for n, group in enumerate(groups):
-                body = '\n\n'.join(x['text'] for x in group)
-                result = await self.runner.attempt(task, body, [x['artifact_id'] for x in group], f'{category}汇总:{level}:{n}')
-                if result:
-                    if not result.get('no_content'):
-                        outputs.append(result)
-                else:
-                    # Preserve texts as volumes; never silently drop a failed group.
-                    outputs.extend(group)
-            if not outputs or (len(groups) == 1 and len(outputs) == 1):
+            groups = pack_items(current, fits)
+
+            async def process(pair):
+                n, group = pair
+                if not fits(group):
+                    self.note(task, category, '完整整理记录超过感知阈值或请求预算；保留完整分册')
+                    return group, False
+                result = await self.runner.attempt(task, material(group),
+                    [x['artifact_id'] for x in group], f'{category}汇总:{level}:{n}')
+                if result is None:
+                    return group, False
+                if result.get('no_content'):
+                    return [], True
+                return [{**result, 'consolidated': True}], True
+
+            processed = await self.parallel(process, enumerate(groups))
+            outputs = [item for group, _ in processed for item in group]
+            if not all(success for _, success in processed):
+                # Do not silently bypass or repeatedly re-summarize failed volumes.
+                return outputs
+            if not outputs or len(groups) == 1:
                 return outputs
             if len(outputs) >= len(current) and sum(len(x['text']) for x in outputs) >= sum(len(x['text']) for x in current):
                 self.note(task, category, '汇总不能继续安全归并；保留完整分册')

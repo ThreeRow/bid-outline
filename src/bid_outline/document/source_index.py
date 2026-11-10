@@ -73,7 +73,7 @@ class SourceIndex:
         return '\n'.join(u.text for u in selected)
 
     def full_range(self, index):
-        """Expand to a bounded structural group, including the complete marked item."""
+        """Historical local-range expansion; main selection uses SectionBlocks."""
         target = self.units[index]
         if target.element.kind != 'table':
             # Several lines within a reader paragraph still form one complete item.

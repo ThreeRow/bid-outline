@@ -71,12 +71,12 @@ def unescape_material(text: str) -> str:
 
 
 def render_task(task_type: str, inputs: dict[str, Any], *, view_version: str = 'readable-v1',
-                protocol: str = 'strict', directory_protocol: str = 'strict') -> list[dict[str, str]]:
+                protocol: str = 'strict', directory_protocol: str = 'strict', provider: str = 'openai') -> list[dict[str, str]]:
     """Render a complete task with explicit, reversibly escaped data boundaries."""
     get_spec(task_type)
     if task_type in TEXT_TASKS:
         from .text_tasks import render
-        return render(task_type, inputs)
+        return render(task_type, inputs, provider=provider)
     if view_version not in {'legacy-json', 'readable-v1'}:
         raise ValueError(f'Unknown prompt view: {view_version}')
     render = render_readable_view if view_version == 'readable-v1' else render_view

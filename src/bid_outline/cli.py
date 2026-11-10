@@ -131,6 +131,9 @@ def doctor(args) -> dict:
               "service_checked": False, "semantic_quality": "not_evaluated"}
     if config.provider == 'train':
         result.update(train_enable_thinking=config.train_enable_thinking,
+                      train_wire_max_tokens=config.service_context_tokens,
+                      train_wire_max_tokens_meaning='total_model_window',
+                      local_generation_reserve_tokens=config.max_tokens,
                       thinking_default=config.thinking_default,
                       thinking_by_task=config.thinking_by_task,
                       directory_protocol=config.directory_protocol,

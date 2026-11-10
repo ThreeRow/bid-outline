@@ -52,7 +52,10 @@ class TrainModelClient:
             'query': train_query(request['messages']),
             'timeout': self.config.train_timeout_seconds,
             'temperature': request['temperature'],
-            'max_tokens': request['max_tokens'],
+            # This train API names its total model window `max_tokens`.
+            # request['max_tokens'] is only the executor's generation reserve
+            # (and OpenAI output cap), not this service parameter.
+            'max_tokens': self.config.service_context_tokens,
             'res_type': 'str',
             'level': self.config.train_level,
             'enable_thinking': int(self.config.thinking_for(request.get('_task_type'))),

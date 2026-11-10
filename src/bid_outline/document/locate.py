@@ -32,6 +32,9 @@ class LocatedRange:
 
     def record(self):
         return {'range_id': self.range_id, 'category': self.category, 'reasons': self.reasons,
+                'source_scope': self.document.metadata.get('source_scope', 'legacy_selected_ranges'),
+                'section_key': self.document.metadata.get('candidate_section_key'),
+                'section_path': self.document.metadata.get('candidate_section_path'),
                 'element_ids': [e.element_id for e in self.document.elements],
                 'source_refs': [e.source_ref.model_dump(mode='json') for e in self.document.elements]}
 

@@ -89,6 +89,7 @@ def test_wire_thinking_id_selection_partial_not_adopted_and_full_audit():
                 q=body['query_list'][0]
                 assert q['id']=='t' and q['enable_thinking']==1 and q['res_type']=='str'
                 assert q['level']==0 and q['timeout']==600
+                assert q['max_tokens']==20480
                 assert 'model' not in body and 'messages' not in body
                 assert '用户消息' in q['query'] and '系统说明' in q['query']
                 return httpx.Response(200,json={'status':1,'responseId':'job'})
@@ -235,6 +236,8 @@ def test_doctor_and_docx_boundary_do_not_call_openai_for_train(monkeypatch):
     root=Path(__file__).resolve().parents[2]
     args=Namespace(config=root/'configs/train.thinking.example.json',check_service=False)
     assert doctor(args)['train_enable_thinking'] is True
+    assert doctor(args)['train_wire_max_tokens']==20480
+    assert doctor(args)['local_generation_reserve_tokens']==8192
     args.check_service=True
     with pytest.raises(ValueError,match='health endpoint'):doctor(args)
     with pytest.raises(ValueError,match='--reader reading'):

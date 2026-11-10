@@ -1,17 +1,19 @@
 # 代码导引：模块、文件与运行流转
 
-核对日期：2026-11-09；当前版本0.13.1。默认工作流为规则与模型协同提取。设计见[25号计划](25_规则与模型协同提取实现计划.md)，环境、实验和维护约定见[PROJECT_CONTEXT](../PROJECT_CONTEXT.md)。prompt已按用户审阅稿调整，尚未真实模型验证；本轮不宣称真实模型质量验收。
+核对日期：2026-11-10；当前版本0.15.2。默认工作流按完整章节块取正文。环境与约定见[PROJECT_CONTEXT](../PROJECT_CONTEXT.md)，设计与历史变更见[25号计划](25_规则与模型协同提取实现计划.md)。当前改变了选区职责，真实模型质量尚未验收。
 
 ## 1. 最短阅读路径
 
-1. `src/bid_outline/cli.py::execute`：配置、输入、run锁、运行终点及导出。
-2. `document/source_index.py::SourceIndex`：章节位置和原文局部单元。
-3. `document/location_rules.py`、`document/locate.py::position_hits`：先位置后线索。
-4. `workflow/extraction.py::Extraction`：目录辅助、局部判断、完整选区、多点锚定、类别汇总。
-5. `workflow/collaborative_runner.py::CollaborativeRunner.run`：当前总编排。
-6. `model/text_tasks.py`与`model/prompts/text/`：任务注册、连贯文本渲染和空内容约定。
-7. `model/executor.py`、`model/train_client.py`、`model/train_batch.py`：逐任务采用与共享train批次。
-8. `export/markdown.py::export_result`：导出ABC文本或目录。
+1. `src/bid_outline/cli.py::execute`：配置、阅读适配、run锁、运行终点及导出。
+2. `document/readers.py::read_document`：读取version=2 corrected片段和章节树，表格采用reader展开正文。
+3. `document/source_index.py::SourceIndex`：原文与局部线索索引，提供有来源的完整元素。
+4. `document/section_blocks.py::SectionBlocks`：章节身份、父子关系、完整候选块回取。
+5. `document/location_rules.py`与`locate.py::position_hits`：明确章节规则、宽泛位置规则、位置内关键词。
+6. `workflow/extraction.py::Extraction`：目录辅助、局部判断、候选块去重、锚定及按需整合。
+7. `workflow/collaborative_runner.py::CollaborativeRunner.run`：当前业务总编排。
+8. `workflow/text_runner.py::organize`：复用材料包装、感知阈值、切分和并发。
+9. `model/text_tasks.py`、`model/executor.py`、train provider：输入渲染、预算、采用及审计。
+10. `export/markdown.py::export_result`：整理结果或目录导出。
 
 下文源码路径以`src/bid_outline/`为基准。
 
@@ -19,136 +21,111 @@
 
 ```text
 cli.execute → read_document → CollaborativeRunner.run
-  → SourceIndex：章节/原文索引
-  → 章节规则 + E01模型目录辅助
-  → position_hits：只在所选位置匹配线索和★☆▲△■
-  → E00：宽泛表达或符号的局部上下文判断
-  → 完整选区 → 分块
-      direct：N01-A识别格式并出目录；N01-B/C整理要求
-      anchors：E02起止句+中间锚点 → 固定Python回取原文
-               失败有限澄清，再显式回退N01；A回取成功先N02-A转目录
-  → 按类别原文顺序拼接 → E03-A/B/C统一整理
-  → A目录直接采用、N02-B展开评审目录 → N03融合 → N04按C补充 → N05润色
+  → SourceIndex + SectionBlocks：正文、章节身份及父子关系
+  → DIRECT明确章节规则 + E01模型目录定位
+      明确位置：直接建立完整章节候选，包含后代章节
+      须知/合同/附件等宽泛位置：位置内关键词定位
+        宽泛表达/符号 → E00少量同章节上下文判断
+        保留/待核 → 对应完整小节；没有更细结构时取完整所在章节
+  → 按类别合并父子重叠候选，保留独立位置和多类用途
+  → 每个完整候选检查9000感知阈值和真实请求预算
+      可容纳：单次处理；否则以4000正文tokens为目标结构切分
+      direct：N01-A生成目录，N01-B/C整理要求
+      anchors：E02多点原文锚定 → 固定Python回取
+               A再N02-A转目录；B/C由E03整理；失败有限澄清后显式回退
+  → 长候选分块结果按源序E03整合；短块直接采用
+  → 多个同类候选按需E03整合
+  → A目录直接采用，N02-B独立评审分册有界并发生成目录，源序收集
+  → N03融合 → N04根据C补充 → N05润色
 ```
 
-A为技术标格式/编制，B为技术或服务评审，C为技术约束、实质性响应、负偏离、必需指标、明确内容范围及相关材料。符号本身可定位，含义由本处上下文判断。当前不执行目录语义检查、自动修正或独立扩展建议。
+关键词决定取哪个结构块，不决定块内哪行保留。完整候选以阅读模块已有章节/小节边界为准，不用编号猜测层级来缩小范围。不执行目录语义检查、自动修正或独立扩展建议。
 
-## 3. 位置与范围模块
+## 3. 阅读与完整候选块
 
-| 文件/接口 | 职责 |
+| 文件/接口 | 当前职责 |
 |---|---|
-| `document/readers.py::read_document` | 消费version=2 corrected阅读产物，回取表格、保留来源及诊断；不重写上游 |
-| `source_index.py::SourceIndex` | 由reader章节路径建立位置索引；文字按段落/展开表格行文建立局部单元 |
-| `SourceIndex.context` | 只取同章节相邻局部单元，不跨章带入整表 |
-| `SourceIndex.full_range` | 回取完整reader段落；表格优先原始行匹配，不能唯一对应时按展开文字的编号关系扩展 |
-| `SourceIndex.document_for` | 生成唯一切片身份，保存原element和projection_source_range；投影内偏移与原文偏移分开 |
-| `location_rules.py::POSITIONS` | A格式/须知/附件，B评标/评审/评分，C技术/项目/采购/服务需求/须知/合同/附件等位置 |
-| `location_rules.py::LOCAL/WEAK` | 范围内内容线索；符号及泛列举表达需局部判断；保留换行避免跨段拼接 |
-| `locate.py::position_hits` | 在规则和目录模型合并的章节范围内检索；技术编制具体栏目保留完整内容，不要求每一项重复关键词 |
-| `document/anchors.py::fields/match_anchors` | 确定性解析最少定位字段，按原文归一化映射找起止及有序中间锚点；不执行模型代码、不默认取第一处 |
-| `document/token_chunks.py`、`chunks.py` | 复用完整预算切分、列表和表格保护及负责范围拆分 |
-| `document/text_chunks.py` | 超长单格的展开文本投影，表/cell身份只作上下文，不能冒充精确单元格位置 |
+| `readers.py::read_document` | 保留corrected章节树到metadata.reader_sections，片段保留section_id/chapter_id和完整来源；表格优先reader展开正文 |
+| `source_index.py::SourceIndex` | 阅读元素与章节路径索引；局部行只用于找线索、局部判断，不用于筛除章节正文 |
+| `section_blocks.py::SectionBlocks` | 优先按reader章节身份和parent_id建立节点；兼容旧适配产物的片段身份；缺身份时按连续路径和显式标题建立位置身份 |
+| `SectionBlocks.matching` | E01返回真实路径/标题，多个同名位置视为歧义，不默认取第一处 |
+| `SectionBlocks.document_for` | 取节点及后代的全部元素，保留原文顺序和完整text；设置完整范围来源，无shared_context碎片投影 |
+| `SectionBlocks.located` | 一条LocatedRange对应一个完整章节块及类别、依据；record包含source_scope、section_key、section_path |
+| `location_rules.py::DIRECT` | 明确格式编制、评审评分、技术/采购需求等章名直接建立候选，不再要求每行命中 |
+| `location_rules.py::POSITIONS/LOCAL/WEAK` | 限定宽泛位置、提供局部线索及弱命中标记 |
+| `locate.py::position_hits` | 仅产生定位证据；不再决定正文逐行取舍 |
 
-`locate.py::locate`仍保留为0.12历史基线，`organization.py::route_organization`保留待定的0.12.1路由。当前默认流程不调用它们；不要把旧全文匹配或A/B压C逻辑加回生产链路。
+同类父候选已包含子候选时只保留父块并合并依据，正文不重复；跨类别允许同一原文分别整理。宽泛位置有一个有效线索即可取该完整小节；排除一个弱线索不删除已由其他依据选中的块。E00节选排除不能授权丢弃未发送内容，保持待核。局部判断按章节身份隔离，同名不同章节不混合。
 
-目录辅助只接受真实章节标题/路径，重复或不存在时一次澄清，仍失败保留未处理范围。缺章节索引不退回全文盲匹配。当前未实现自动展开外部附件、对全文扫描图片或解析嵌入压缩包。
+完整表格沿用reader展开text并标为expanded_table_text；原始单元格身份保留为来源上下文。为保持同一份正文，当前块不携带可触发原表行重渲染的table_rows，后续切分按展开文本偏移，不能声称精确单元格切片归属。
 
-E00输出首行保留/排除/待核，其余可简短说明。空答、失败、非预期结论不作排除。同区其他命中不随一处排除消失。超长局部单元给模型显式有限节选；若节选被判排除，不能授权丢弃整份未发送内容，保留待核。后续可进一步完善局部单元边界。
+`SourceIndex.full_range/complete_units/document_for`保留历史局部片段逻辑，当前主选区不调用；`locate.py::locate`、`organization.py::route_organization`也不进入默认主流程。不要把原来的行筛选、表格逐字映射或A/B压C优先级接回主链路。
 
-## 4. 业务编排方法
+## 4. 分块、整理及整合
 
 | 方法 | 职责 |
 |---|---|
-| `CollaborativeRunner.run` | 恢复校验、协同提取、按终点停止、下游目录生成、采用run_result |
-| `CollaborativeRunner.organize_call` | direct/anchors两条对照路径，锚定回退可追溯 |
-| `text_runner.py::organize` | 当前复用的分块实现，独立块并发，按规划顺序返回；不按响应完成顺序拼接 |
-| `Extraction.directory` | 分页目录E01，验证标题，合并候选位置 |
-| `Extraction.locate` | position_hits、局部判断、合并完整选区，保留模型决策依赖 |
-| `Extraction.anchors` | E02定位、验证、一次修正、原文回取或显式回退 |
-| `Extraction.summarize` | 完整文本记录按预算分组汇总，有限层数；失败或不能继续归并保留分册及未完成标记 |
-| `text_runner.py::call/attempt` | 统一文本任务身份、执行器、可读投影及失败记录；为新旧文本runner复用 |
+| `Extraction.locate` | 明确规则/E01直接选章；宽泛位置匹配与E00；完整回取和同类父子去重 |
+| `CollaborativeRunner.run`的N02-B分册展开 | 复用Extraction.parallel与executor请求限额；独立分册并发、源序收集，失败/无内容沿既有处理，N03依赖融合仍串行 |
+| `CollaborativeRunner.organize` | 直接处理locate给出的一个完整候选，不再按顶层章节重新合并独立小节 |
+| `TextWorkflowRunner.organize(adaptive=True)` | 完整候选先计量，超9000或硬预算不足才切分，独立块并发并按规划源序返回 |
+| `organization_material/material_tokens/perception_fits` | 资料分区、正文与必要条件计量、硬预算统一准入 |
+| `token_chunks/split_chunk/expandable_tables` | 复用结构与负责范围切分；单元不可安全处理则明确失败 |
+| `Extraction.anchors` | E02原文起止/中间锚点验证，最多一次修正，不默认取第一匹配，不执行模型生成代码 |
+| `Extraction.summarize` | 单个已整理结果直接采用；分块/锚定原文/多位置按需整合；完整记录打包、有限层数、失败保留分册 |
 
-汇总不允许按固定字符截断原文。单条过大、合并不收敛或到层数上限时明确不完整，保留完整分册；不会将失败组静默丢弃。来源精度为范围和阶段级，没有造逐标题要求归属。
+4000只指导触发拆分后的正文大小，正文加必要条件仍受9000和实际请求预算约束。没有“每章最多5—6块”的硬限制，依阅读模块实际边界和token量决定。原文、补充和程序失败不静默裁剪。输出nonempty和调用成功均不代表语义完整。
 
-## 5. 任务与prompt
+## 5. Prompt与provider
 
-任务注册在`model/text_tasks.py`，文件在`model/prompts/text/`：
+模板在`model/prompts/text/`，注册在`model/text_tasks.py`。模板版本separated-material-provider-2，本轮不改正文。A直接目录、B/C原句要求；B目录显式保留列项和评价维度。
 
-| 任务 | 用途 |
-|---|---|
-| E01 | 根据目录辅助选择候选位置 |
-| E00 | 局部宽泛线索判断 |
-| E02 | 起始句、结束句、中间锚点定位 |
-| N01-A/B/C | A直接生成目录，B/C沿原句整理要求 |
-| E03-A/B/C | A合并目录草稿，B/C统一整理要求文本 |
-| N02-A/B | A仅转换锚定回取的原文，B展开列项及输入实际评价维度 |
-| N03/N04/N05 | 融合、C补充、最终润色 |
+`TextMaterial`分body、context（位置）、supplement（来源补充）、feedback，所有资料位于任务说明之后的`---`后。OpenAI保留system角色与user任务/资料；train是一份完整query，不加裸system/user文字。runner规划和executor使用同一provider渲染；train input.md等于实际query，OpenAI审计用角色标题展示。旧P多角色train序列化兼容保留。
 
-业务文本采用text-v1，不走旧字段/引用解析；E00及定位任务仅解析必要的短控制信息。模型不承担程序ID和来源偏移。`model/task_specs.py`按任务转交渲染。每次独立请求携带完整资料。prompt按用户审阅稿修订，不能将机械测试当真实小模型能力证明。
+精确整答“无”标记no_content，空答案/失败不等于无内容；原始回复保留。E00仍为保留/排除/待核。已有目录后继突然返回无则保留草稿及问题。
 
-## 6. 执行与train批量
+## 6. 执行、恢复和产物
 
-`ModelExecutor`继续统一预算、全局逻辑任务信号量、调用额度、审计、指纹、恢复和采用。max_run_calls统计逻辑尝试，不能当HTTP批次数。train批次能力新增于`model/train_batch.py`：
+ModelExecutor复用逻辑并发、总调用额度、预算、指纹、逐任务采用及审计。train_batch.py复用query_list微批和共享票据；任务独立采用、乱序按ID、失败隔离，未知提交不盲目重提。text train优先，示例温度0、thinking关闭；不据此承诺准确性。
 
-- `train_batch_size>1`启用微批合并，实际条数不超过max_in_flight，短等待合并已就绪任务。
-- 每条query仍占逻辑在途名额并独立预算，`train_max_batches`另限HTTP批次。
-- `train_batches/batch-*/`保存批次成员、原始请求/响应、共享ticket及终态；members/按任务指纹索引共享批次。
-- 各calls目录通过train.batch.json及train.ticket.json关联共享票据；返回结果按query_id关联，乱序不影响采用。
-- 空答、缺ID或失败不采用为成功；其他成功条目可独立采用。提交不确定不盲目重提；共享收据可恢复本地ticket写入前的中断。
-- 恢复同一票据时共享轮询；取消一个任务不主动取消服务作业，关闭时保留可恢复证据。
-- 不自动重提失败成员或终态无正文。使用已有票据恢复结果；显式变更输入/新运行须另保留失败历史。旧P任务继续单任务train路径，文本E/N任务才启用合批，避免改变旧格式重试语义。
-
-批量默认AppConfig值1；新示例train.text.example.json设2，与max_in_flight=2匹配。尚未进行新批量路径真实服务吞吐/质量调优。阅读模块独立train运行时不是本执行器，旧阅读诊断脚本默认OpenAI的行为属于历史实测；本轮直接复用reading产物。
-
-## 7. 运行终点、恢复与产物
-
-```bash
-python -m bid_outline run --reader reading --input /path/reading \
- --config configs/train.text.example.json --run /path/new-run --stop-after organized
-python -m bid_outline resume --run /path/new-run --stop-after directory
-```
-
-`stop_after=candidates/organized/directory`分别停在完整候选、ABC汇总或目录。anchors/direct可用配置或`--extraction-mode`选择。恢复允许只向后推进终点；终点不影响任务指纹，所以继续目录不重跑已采用提取。配置其他字段、代码、规则版本、prompt或flow变化要求新run。旧run不可恢复到新流程，只读status/export仍支持。
+应用0.15.2，flow collaborative-directory-5，规则complete-section-rules-2，模板separated-material-provider-2。需新run；旧版本仅只读status/export，不能跨新版本恢复。
 
 ```text
-run/
-  manifest.json / runtime.json / run.sqlite3 / run.lock
-  artifacts/                         权威不可变产物及parents
-  calls.md / calls/                  逐任务请求、结果、采用审计
-  train_batches/                     共享train批次审计与成员索引
-  stages/
-    section_index.json / rule_candidates.json
-    local_screening.json / selected_ranges.json
-    text_<task_hash>.md               逐任务可读投影
-    anchor_matches_*.json             锚点原文匹配与偏移
-    organized/A.md B.md C.md          按类整理文本，失败时保留完整分册
-    final.md
-  exports/
-    A.md B.md C.md                    整理终点及目录结果可导出
-    backbone.md                      只有目录终点输出
-    unresolved.md / provenance.json
+run/stages/
+  section_index.json             章节身份/父子关系/元素数
+  rule_candidates.json           章节范围内的定位线索，不是正文筛选结果
+  local_screening.json           宽泛位置的局部判断和待核
+  selected_ranges.json           完整候选章节及元素来源
+  organization_plan_*.json       每个完整块的长度/触发原因/分块预算
+  organized/A.md B.md C.md       模型整理产物
 ```
 
-stages是可重建视图，采用权威在SQLite/artifacts。completed仅表示当前终点执行无已记录故障，不代表内容完整、判断正确或目录有效。semantic_quality始终not_evaluated。provider缺finish_reason时默认stop仍是已知风险。
+原始来源和采用权威仍为artifacts/SQLite，stages仅可读投影。stop_after=candidates/organized/directory依次控制终点；candidates在真实运行中仍会调用E01和必要E00。
 
-## 8. 测试和诊断
+## 7. 验证与诊断
 
-- `tests/integration/test_collaborative_extraction.py`：当前入口、位置限定、符号、局部取舍、标题验证、锚点、类别汇总、终点推进和来源切片。
-- `tests/unit/test_train_batch.py`：真实HTTP载荷模拟，批量乱序、失败隔离、票据恢复、未知提交、共享收据、取消恢复等。
-- `tests/integration/test_text_workflow.py`与`test_organization_routing.py`明确导入旧TextWorkflowRunner作历史对照；其中CLI用例验证新默认入口。
-- 旧P任务测试与预算、provider、审计、存储回归继续保留。
-- `scripts/evaluate_positioned.py`：24份已有阅读产物的纯规则选区回放；不运行目录模型或局部门控，弱命中全部只计待判断，不能宣称端到端准确率。
-- `scripts/evaluate_location.py`、`evaluate_reading_location.py`：保留0.12关键词基线与真实阅读实验，结果不覆盖。
+- `tests/integration/test_complete_section_blocks.py`：完整评分项、无关键词子项、E01无需二次关键词、宽泛局部定位、同类父子去重、多类用途、同名章节身份、局部判断隔离、独立小节不重拼、S24真实表格及切分覆盖。
+- `test_collaborative_extraction.py`：主流程、锚定、产物衔接、空内容、恢复和导出；弱线索测试在合同等宽泛位置，明确采购需求不再强制E00。
+- `test_long_input.py`：感知阈值、长表、源序、失败分册和有限整合。
+- `test_text_prompt_revision.py`：两种provider边界、实际HTTP模拟query/预算/input.md一致与原文保真。
+- `scripts/evaluate_section_blocks.py`：复用24份阅读产物离线输出完整候选和N01输入，逐元素验证源文偏移覆盖和实际body一致，不运行模型。
+- `scripts/evaluate_positioned.py/evaluate_location.py/evaluate_reading_location.py/evaluate_long_inputs.py`保留历史用途；不能把旧碎片规划结果当成本版本候选正文完整性的证据。
 
-当前已知边界：规则仍可能选过宽或漏选，阅读路径可能误归属；原表和模型展开文字不一定可唯一映射行，表内范围依赖展开文本边界；锚点不存在或重复时保留问题；没有全文金标准。真实模型prompt和局部判断质量需要后续小批文本train验证。
+当前离线回放的E01关闭、E00待核保留；只验证已选块和输入覆盖，不证明定位召回、相关性或模型整理质量。既有reading状态与诊断继续保留；章节识别不完整会限制候选完整性。外部附件、图片和嵌入文件未自动补读。
 
-旧`workflow/runner.py`为P流程；`workflow/text_runner.py::run`为0.12文本流程。当前仅复用后者的调用、预算、分块方法，默认不运行其旧总编排。
+0.15.1仅将独立N02-B分册改为有界并发；E01分页仍串行，未变更文件间调度、超时或模型接口配置。新增test_parallel_evaluation_drafts.py验证乱序完成仍源序融合、请求限额、失败及无内容隔离。当前代码版本变化需新run。
+
+0.15.1验证：完整离线回归410项通过（19.01秒），新增3个N02-B并发集成用例，本轮真实模型调用0次。
+
+批处理入口：scripts/run_reading_batch.py消费已有reading，独立文件进程和run，冻结src/prompt，每文件executor维持请求上限；默认5×4=20，HTTP600/train任务3600/轮询7200秒。progress.md和batch.json区分原阅读状态、生成状态及最终目录存在性。tests/integration/test_reading_batch.py覆盖容量、冻结代码CLI模拟、文件调度及失败隔离。真实批次入口记录在PROJECT_CONTEXT，避免重复启动。
 
 
-## 9. 0.13.1提示词与接口适配
+## train窗口参数修正（0.15.2）
 
-`model/text_tasks.py::TextMaterial`分开保存本次章节/目标/共同条件与字面原文。render把上下文填入模板，输出单一user消息，说明与资料用`---`分隔。`train_query`对这一条user消息原样传输；既有P多角色请求继续兼容。TokenBudget与单条/合批wire_request共用序列化，预算即实际完整query的预算。锚点模式原文规划按实际E02提示计量。
+用户确认train的max_tokens表示总模型窗口。`model/train_client.py::wire_request`发送`config.service_context_tokens`，单条/微批均经过这里；不能发送逻辑请求中的生成预留`request.max_tokens`。`config.max_tokens`继续用于TokenBudget的本地生成预留，以及OpenAI请求的最大输出额度。train未单独传输出上限，不将本地预留视为服务强制输出限制。
 
-`no_content`仅精确识别完整回答“无”（E00仍三态）；原始text和no_content写入model_result，空答继续错误。CollaborativeRunner过滤无内容块与汇总，direct的A不再调用N02-A，anchors的A回取成功后用N02-A生成一次目录。N03输入标明格式目录、评审目录或已融合草稿的真实角色。已有非空目录时后继回答无，保留草稿并记录问题，不把无导出为成功目录。
+`cli.doctor`输出train_wire_max_tokens、含义total_model_window及local_generation_reserve_tokens。request.json保留逻辑参数，实际提交以request.http.json和train_batches下train.submit.request.json为准。executor指纹1.9.1及代码0.15.2要求新run，旧批次快照与审计原样保留。20K/40K窗口回归分别验证20480/40000，逻辑窗口16000和预留4096故意设不同值，以防混用；OpenAI仍传8192输出上限。本次不改变示例服务窗口20480，也不调用真实模型。
 
-版本为0.13.1、flow为collaborative-directory-2、prompt为self-contained-prompts-1。旧流程导出兼容仍保留。`text_batch_tokens=3000`和原分块/固定汇总策略本轮不变；9000感知阈值、4000拆分目标仍是待实施计划。
+0.15.2验证：完整离线415项通过（29.61秒），单条/微批20480与40000服务窗口均经模拟HTTP验证；doctor本地检查通过，真实模型请求0次。
+
+服务接口字段、max_tokens语义、三层超时、并发、提交与轮询示例见[26号服务调用说明](26_模型服务调用说明.md)。

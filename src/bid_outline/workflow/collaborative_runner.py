@@ -2,6 +2,7 @@
 import asyncio
 import json
 
+
 from bid_outline import __version__
 from bid_outline.document.location_rules import VERSION as RULES_VERSION
 from bid_outline.domain import Document
@@ -11,10 +12,14 @@ from .common import identity, now
 from .extraction import Extraction
 from .text_runner import TextWorkflowRunner
 
-FLOW_VERSION = 'collaborative-directory-2'
+FLOW_VERSION = 'collaborative-directory-5'
 
 
 class CollaborativeRunner(TextWorkflowRunner):
+    async def organize(self, located, parent):
+        # The locator already owns one complete, non-overlapping section block.
+        return await super().organize(located, parent, adaptive=True)
+
     def organization_task(self, task):
         return 'E02' if self.config.extraction_mode == 'anchors' else task
 
@@ -25,9 +30,10 @@ class CollaborativeRunner(TextWorkflowRunner):
                 if task == 'N01-A' and not result.get('no_content'):
                     # An anchor response produces literal source, not an A directory.
                     return await self.call('N02-A', TextMaterial(result['text'],
-                        material.context if isinstance(material, TextMaterial) else ''),
+                        material.context if isinstance(material, TextMaterial) else '',
+                        material.supplement if isinstance(material, TextMaterial) else ''),
                         parents + [result['artifact_id']], name + ':根据回取原文生成格式目录')
-                return result
+                return {**result, 'requires_consolidation': task != 'N01-A' and not result.get('no_content')}
         return await self.call(task, material, parents, name)
 
     async def run(self, document=None, *, resume=False):
@@ -77,8 +83,6 @@ class CollaborativeRunner(TextWorkflowRunner):
                     for item in items:
                         if item.get('no_content'):
                             continue
-                        # A readable source label, not a model-owned ID contract.
-                        item = {**item, 'text': '来源区域：' + item.get('source_heading', '') + '\n' + item['text']}
                         organized[category].append(item)
                 async def summarize(category):
                     return category, await self.extraction.summarize(category, organized[category])
@@ -90,8 +94,11 @@ class CollaborativeRunner(TextWorkflowRunner):
                 drafts = []
                 # A already is a directory; only B needs expansion after organization.
                 drafts.extend(('A', item) for item in organized['A'])
-                for item in organized['B']:
-                    result = await self.attempt('N02-B', item['text'], [item['artifact_id']], '根据评审要求展开目录')
+                async def expand_evaluation(item):
+                    return await self.attempt('N02-B', item['text'], [item['artifact_id']], '根据评审要求展开目录')
+                # Independent volumes share the executor's request limit. Results
+                # retain source order even when the requests finish out of order.
+                for result in await self.extraction.parallel(expand_evaluation, organized['B']):
                     if result and not result.get('no_content'):
                         drafts.append(('B', result))
                 current_kind = None

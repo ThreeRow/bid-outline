@@ -36,7 +36,7 @@ class TextWorkflowRunner:
         write_atomic(self.run_dir / 'manifest.json', json.dumps(self.manifest, ensure_ascii=False, indent=2) + '\n')
 
     def messages(self, task, material):
-        return render_task(task, input_data(material))
+        return render_task(task, input_data(material), provider=self.config.provider)
 
     def fits(self, task, material):
         try:
@@ -44,6 +44,16 @@ class TextWorkflowRunner:
             return True
         except BudgetExceeded:
             return False
+
+    def material_tokens(self, material):
+        """Reading load excludes task instructions, includes necessary context."""
+        text = ('\n\n'.join(filter(None, [material.context, material.body, material.supplement]))
+                if isinstance(material, TextMaterial) else material)
+        return self.executor.budget.text_tokens(text)
+
+    def perception_fits(self, task, material, limit=None):
+        limit = self.config.long_input_threshold_tokens if limit is None else limit
+        return self.material_tokens(material) <= limit and self.fits(task, material)
 
     async def call(self, task, material, parents, name):
         inputs = input_data(material)
@@ -68,36 +78,82 @@ class TextWorkflowRunner:
                                      'error': f'{type(exc).__name__}: {exc}'})
             return None
 
-    async def organize(self, located, parent):
+    def organization_material(self, category, document, chunk, body=None, elements=None):
+        elements = elements or {e.element_id: e for e in document.elements}
+        # A model-expanded cell table ending in ':' is not a common lead-in.
+        # Preserve legitimate conditions even when Word wraps them across lines.
+        notes = [n['text'].strip() for n in chunk.context_notes
+                 if not re.search(r'第\s*\d+\s*行.*第\s*\d+\s*列', n['text'])]
+        headers = [row['text'] for ref in chunk.owned_refs for eid in ref.element_ids
+                   if elements[eid].kind == 'expanded_table_text'
+                   for row in elements[eid].metadata.get('table_rows', []) if row.get('header')]
+        shared = [elements[eid].metadata['shared_context'] for ref in chunk.owned_refs
+                  for eid in ref.element_ids if elements[eid].metadata.get('shared_context')]
+        body = chunk.text if body is None else body
+        # Never shorten explicit shared conditions. Exact repeats already in the
+        # owned text need not be copied again as auxiliary material.
+        supplements = list(dict.fromkeys(x for x in shared + notes + headers if x and x not in chunk.text))
+        sections = list(dict.fromkeys(' / '.join(span['section_path']) for span in chunk.section_spans))
+        context = '截取内容所属章节：\n' + (' / '.join(chunk.section_context) or '见所给材料的位置说明')
+        if sections:
+            context += '\n涉及小节：\n' + '\n'.join(sections)
+        if self.organization_task('N01-' + category) == 'E02':
+            context = '本次寻找的内容：' + CATEGORY_CONTENT[category] + '\n' + context
+        return TextMaterial(body, context, '\n\n'.join(supplements))
+
+    async def organize(self, located, parent, *, adaptive=False):
         task = 'N01-' + located.category
         budget_task = self.organization_task(task)
         budget = self.executor.budget
-        document = expandable_tables(located.document, budget.text_tokens, self.config.text_batch_tokens)
+        limit = self.config.text_batch_tokens
+        document = located.document
+        if not adaptive:
+            document = expandable_tables(document, budget.text_tokens, limit)
         elements = {e.element_id: e for e in document.elements}
         def material(chunk, body=None):
-            notes = '\n'.join(n['text'] for n in chunk.context_notes)
-            sections = '\n'.join(' / '.join(span['section_path']) for span in chunk.section_spans)
-            headers = list(dict.fromkeys(row['text'] for ref in chunk.owned_refs for eid in ref.element_ids
-                if elements[eid].kind == 'expanded_table_text'
-                for row in elements[eid].metadata.get('table_rows', []) if row.get('header')))
-            projected_context = '\n'.join(dict.fromkeys(elements[eid].metadata.get('shared_context', '')
-                for ref in chunk.owned_refs for eid in ref.element_ids if elements[eid].metadata.get('shared_context')))
-            context = ('本次寻找的内容：' + CATEGORY_CONTENT[located.category] + '\n截取内容所属章节：\n' +
-                    (' / '.join(chunk.section_context) or '见所给材料的位置说明') +
-                    ('\n共同条件/表头：\n' + projected_context if projected_context else '') +
-                    ('\n涉及小节：\n' + sections if sections else '') +
-                    ('\n辅助条件（仅供理解）：\n' + notes if notes else '') +
-                    ('\n原表表头（辅助理解）：\n' + '\n'.join(headers) if headers else ''))
-            return TextMaterial(chunk.text if body is None else body, context)
+            return self.organization_material(located.category, document, chunk, body, elements)
+        if adaptive:
+            # Caller isolates candidate positions. Build the complete unit first;
+            # only expand/split tables after deciding that one call is unsuitable.
+            whole = token_chunks(document, allowance=lambda c: 10**15,
+                text_tokens=budget.text_tokens, fits=lambda c: True)
+            threshold = self.config.long_input_threshold_tokens
+            single = len(whole) == 1 and self.perception_fits(budget_task, material(whole[0]))
+            limit = threshold if single else min(threshold, self.config.split_target_tokens)
+            if not single:
+                document = expandable_tables(document, budget.text_tokens, min(limit, budget.allowance(
+                    self.messages(budget_task, material(whole[0], '')), self.config.max_tokens, task_type=budget_task)))
+                elements = {e.element_id: e for e in document.elements}
+        def accepts(chunk):
+            value = material(chunk)
+            return (budget.text_tokens(chunk.text) <= limit and
+                    (self.perception_fits(budget_task, value) if adaptive else self.fits(budget_task, value)))
+        def allowance(chunk):
+            empty = material(chunk, '')
+            reading_capacity = max(0, threshold - self.material_tokens(empty)) if adaptive else limit
+            return min(limit, reading_capacity, budget.allowance(
+                self.messages(budget_task, empty), self.config.max_tokens, task_type=budget_task))
         chunks = token_chunks(document,
-            allowance=lambda c: min(self.config.text_batch_tokens, budget.allowance(
-                self.messages(budget_task, material(c, '')), self.config.max_tokens, task_type=budget_task)),
-            text_tokens=budget.text_tokens,
-            fits=lambda c: budget.text_tokens(c.text) <= self.config.text_batch_tokens and self.fits(budget_task, material(c)))
+            allowance=allowance,
+            text_tokens=budget.text_tokens, fits=accepts)
+        if adaptive:
+            plan = {'range_id': located.range_id, 'category': located.category, 'task': budget_task,
+                'threshold_tokens': threshold, 'split_target_tokens': self.config.split_target_tokens,
+                'split_target_scope': 'source_body; necessary context also counts toward perception threshold',
+                'material_tokens': sum(self.material_tokens(material(c)) for c in whole),
+                'reason': 'single' if single else 'perception_threshold' if any(
+                    self.material_tokens(material(c)) > threshold for c in whole) else 'request_budget',
+                'chunks': [{'chunk_id': c.chunk_id, 'material_tokens': self.material_tokens(material(c)),
+                            'request_fits': self.fits(budget_task, material(c))} for c in chunks]}
+            self.artifacts.put('organization_plan', plan, parents=[parent])
+            write_atomic(self.run_dir / 'stages' / ('organization_plan_' + identity('', located.range_id) + '.json'),
+                         json.dumps(plan, ensure_ascii=False, indent=2))
+        split_during_execution = False
         async def process(chunk):
+            nonlocal split_during_execution
             source = self.artifacts.put('located_chunk', chunk.model_dump(mode='json'), parents=[parent])
             try:
-                if budget.text_tokens(chunk.text) > self.config.text_batch_tokens:
+                if not accepts(chunk):
                     raise BudgetExceeded('indivisible source exceeds text processing limit')
                 result = await self.organize_call(task, material(chunk), chunk.text, [source], located.category + ':' + chunk.chunk_id)
                 headings = [' / '.join(span['section_path']) for span in chunk.section_spans]
@@ -105,6 +161,7 @@ class TextWorkflowRunner:
             except (BudgetExceeded, OutputTruncated) as exc:
                 children = split_chunk(document, chunk)
                 if children:
+                    split_during_execution = True
                     outputs = []
                     for child in children:
                         outputs.extend(await process(child))
@@ -117,7 +174,13 @@ class TextWorkflowRunner:
             return []
         # Requests may finish out of order; flatten in planned source order.
         groups = await bounded_map(process, chunks, workers=self.config.workers, capacity=self.config.queue_capacity)
-        return located.category, [item for group in groups for item in group]
+        items = [item for group in groups for item in group]
+        if adaptive:
+            headings = '；'.join(dict.fromkeys(item.get('source_heading', '') for item in items))
+            items = await self.extraction.summarize(located.category, items,
+                force=not single or split_during_execution or len(items) > 1)
+            items = [{**item, 'source_heading': item.get('source_heading') or headings} for item in items]
+        return located.category, items
 
     async def organize_call(self, task, material, source, parents, name):
         return await self.call(task, material, parents, name)

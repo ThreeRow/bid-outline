@@ -182,7 +182,7 @@ def test_organization_known_truncation_splits_owned_source(tmp_path):
         assert result['status'] == 'completed'
         calls = [r for r in client.requests if r['_task_type'] == 'N01-A']
         assert len(calls) == 3
-        assert sum(len(r['messages'][-1]['content'].split('\n\n---\n\n', 1)[1]) for r in calls[1:]) == len(doc.elements[0].text)
+        assert sum(len(r['messages'][-1]['content'].split('本次资料：\n', 1)[1].split('\n\n补充上下文：\n',1)[0]) for r in calls[1:]) == len(doc.elements[0].text)
     asyncio.run(run())
 
 
@@ -246,7 +246,7 @@ def test_cli_uses_text_flow_and_export_is_read_only(tmp_path, monkeypatch, capsy
     assert cli.main(['export', '--run', str(run_dir)]) == 0
     capsys.readouterr()
     manifest, tasks, attempts = cli.read_state(run_dir)
-    assert manifest['flow_version'] == 'collaborative-directory-2'
-    assert {t['task_type'] for t in tasks} == {'E01', 'N01-A', 'E03-A', 'N05'}
-    assert len(attempts) == 4
+    assert manifest['flow_version'] == 'collaborative-directory-5'
+    assert {t['task_type'] for t in tasks} == {'E01', 'N01-A', 'N05'}
+    assert len(attempts) == 3
     assert '# 总体技术方案' in (run_dir / 'exports/backbone.md').read_text()

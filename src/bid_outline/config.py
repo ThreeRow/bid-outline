@@ -13,8 +13,10 @@ class AppConfig(BaseModel):
     model: str = ''
     api_key_env: str = 'BID_OUTLINE_API_KEY'
     context_tokens: int = Field(20480, gt=0)
-    service_context_tokens: int = Field(20480, gt=0)
-    max_tokens: int = Field(8192, gt=0)
+    service_context_tokens: int = Field(20480, gt=0,
+        description='Service total model window; sent as max_tokens by the train API')
+    max_tokens: int = Field(8192, gt=0,
+        description='Local generation reserve; OpenAI output cap; not train wire max_tokens')
     safety_tokens: int = Field(1024, ge=0)
     temperature: float = Field(0, ge=0, le=2)
     max_in_flight: int = Field(2, gt=0)
@@ -29,6 +31,8 @@ class AppConfig(BaseModel):
     max_run_calls: int = Field(2000, gt=0)
     chunk_chars: int = Field(5000, gt=0)
     text_batch_tokens: int = Field(3000, gt=0)
+    long_input_threshold_tokens: int = Field(9000, gt=0)
+    split_target_tokens: int = Field(4000, gt=0)
     extraction_mode: Literal['direct', 'anchors'] = 'direct'
     directory_assistance: bool = True
     local_context_chars: int = Field(1200, gt=0)

@@ -18,7 +18,7 @@ TASKS = {
     'N04': ('补充目录', '04_supplement'),
     'N05': ('润色输出', '05_final'),
 }
-VERSION = 'self-contained-prompts-1'
+VERSION = 'separated-material-provider-2'
 
 CATEGORY_CONTENT = {
     'A': '投标文件技术部分的格式、组成、栏目和编制要求',
@@ -30,21 +30,24 @@ NO_CONTENT_TASKS = frozenset(TASKS) - {'E00'}
 
 @dataclass(frozen=True)
 class TextMaterial:
-    """Caller-owned context is instruction text; body remains literal input data."""
+    """Source body, location metadata and supporting source text are data."""
     body: str
     context: str = ''
+    supplement: str = ''
+    feedback: str = ''
 
 
 def input_data(material):
     if isinstance(material, TextMaterial):
-        return {'material': material.body, 'prompt_context': material.context}
+        return {'material': material.body, 'material_context': material.context,
+                'supplementary_material': material.supplement, 'feedback': material.feedback}
     return {'material': material}
 
 
 def with_feedback(material, feedback):
     if not isinstance(material, TextMaterial):
         material = TextMaterial(material)
-    return replace(material, context=(material.context + '\n\n' + feedback).strip())
+    return replace(material, feedback=(material.feedback + '\n\n' + feedback).strip())
 
 
 def no_content(task, text):
@@ -52,7 +55,19 @@ def no_content(task, text):
     return task in NO_CONTENT_TASKS and text.strip() == '无'
 
 
-def render(task, inputs):
-    prompt = (Path(__file__).with_name('prompts') / 'text' / f'{task}.txt').read_text(encoding='utf-8')
-    prompt = prompt.replace('{context}', inputs.get('prompt_context', '')).strip()
-    return [{'role': 'user', 'content': prompt + '\n\n---\n\n' + inputs['material']}]
+def render(task, inputs, *, provider='openai'):
+    prompt = (Path(__file__).with_name('prompts') / 'text' / f'{task}.txt').read_text(encoding='utf-8').strip()
+    role, instructions = prompt.split('\n\n', 1)
+    data = []
+    if inputs.get('material_context'):
+        data.append(inputs['material_context'])
+    if inputs.get('feedback'):
+        instructions += '\n\n请结合所附上次处理反馈完成本次任务。'
+        data.append('上次处理反馈：\n' + inputs['feedback'])
+    data.append('本次资料：\n' + inputs['material'])
+    if inputs.get('supplementary_material'):
+        data.append('补充上下文：\n' + inputs['supplementary_material'])
+    user = instructions + '\n\n---\n\n' + '\n\n'.join(data)
+    if provider == 'train':
+        return [{'role': 'user', 'content': role + '\n\n' + user}]
+    return [{'role': 'system', 'content': role}, {'role': 'user', 'content': user}]

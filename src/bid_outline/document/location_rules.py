@@ -1,7 +1,7 @@
 """Position rules and local signals; marker meaning is deliberately undecided."""
 import re
 
-VERSION = 'position-rules-1'
+VERSION = 'complete-section-rules-2'
 POSITIONS = {
     'A': re.compile(r'(?:投标|响应)文件(?:的)?(?:内容及)?(?:格式|编制|组成|构成)|须知|前附表|模板|附件|技术标部分|商务技术文件'),
     'B': re.compile(r'评标|评审|评分|评定标|定标办法'),
@@ -22,3 +22,12 @@ def compact(text):
 
 def position_categories(path):
     return [category for category, pattern in POSITIONS.items() if pattern.search(compact(' / '.join(path)))]
+
+
+# Clear chapter titles directly establish a complete candidate. Generic locations
+# such as instructions, contracts and appendices still need local signals.
+DIRECT = {
+    'A': re.compile(r'(?:投标|响应)文件(?:的)?(?:内容及)?(?:格式|编制|组成|构成)|技术(?:标部分|文件)|编制说明|模板'),
+    'B': re.compile(r'评标|评审|评分|评定标|定标办法'),
+    'C': re.compile(r'技术条款|技术(?:和服务)?要求|(?:项目|采购|服务)需求|需求书|技术规范'),
+}

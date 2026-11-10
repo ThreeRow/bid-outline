@@ -234,3 +234,36 @@ python -m bid_outline resume --run /path/new-run --stop-after directory
 `--stop-after candidates`同样会执行目录辅助及必要局部判断，不是纯离线命令。纯规则回放用`python scripts/evaluate_positioned.py --output reviews/new_position_replay`，该脚本不会调用模型，弱命中只列为待判断。旧evaluate_location/evaluate_reading_location保留历史基线，不代表新规则或新prompt的效果。
 
 `--outline-thinking`现在同时覆盖E03-A/B/C和N02/N03/N04/N05；不改变E01/E00/E02及N01的单独配置。新任务均使用text-v1，旧directory-protocol不影响它们。真实实测前需用户参与prompt定稿；本轮尚未执行新模型请求。
+
+
+## 0.14.0长输入阈值诊断
+
+默认复用24份已保存reading产物，离线比较旧3000分块和新9000/4000策略，不调用模型。E01关闭，E00命中仅保留待判断；N01输入计划完整导出。数量变化不代表语义准确率。
+
+```bash
+python scripts/evaluate_long_inputs.py --output reviews/new_threshold_plan
+```
+
+显式增加`--real-samples S21 S24`会调用文本train，对指定样本中可容纳的9200—10300 tokens（含必要上下文）的技术需求片段分别单次整理和阈值分块整理；不执行目录生成。固定temperature=0、thinking关闭，保留原文、两套结果、逐调用和共享票据审计。输入不适合该对照时明确记录跳过，不用较短材料冒充长输入。需要新输出目录。
+
+
+## 0.15.0完整章节候选回放
+
+```bash
+python scripts/evaluate_section_blocks.py --output reviews/new_complete_section_replay
+```
+
+复用24份已保存reading与适配产物，不重跑阅读、不调用模型。E01关闭、宽泛位置的E00待核保留。输出每个完整候选的candidate.md、实际train形式的input_*.md、inputs.json及source refs；逐元素核对负责偏移连续覆盖并验证实际body等于源切片拼接。S24技术评审四项另行核对。summary.json统计完整候选及切分规划，不包含真实N01/E03输出；不能视为语义质量或全文召回验收。已有阅读状态和未完成项不被清除。
+
+
+## 从已有document-reading结果并发生成目录
+
+`run_reading_batch.py`只执行生成，不重新阅读DOCX。默认S01—S24，5文件并发×每文件4逻辑请求＝全批上限20，train每批2条、每文件最多2批在途。temperature=0，thinking关闭；HTTP操作超时600秒、提交给train的任务超时3600秒、客户端轮询期限7200秒。服务器是否接受更长任务期限以实际终态为准。
+
+```bash
+python scripts/run_reading_batch.py --output runs/new_reading_generation_batch
+```
+
+必须使用新输出目录。启动前核对24份阅读状态和内容哈希，随后冻结src和prompt到source_snapshot，全部子进程使用快照；不会跨run隐式复用响应或自动重新提交旧作业。每文件的run目录、日志、原始HTTP及票据独立。`--parallel-files`、`--concurrency`之积不得超过`--max-total-in-flight`（默认20）。修改全局容量必须显式调整参数。
+
+`batch.json`与`progress.md`每15秒刷新，记录原阅读状态、生成状态、当前阶段、文件耗时、调用快照及是否产出最终目录；completed/incomplete与最终目录存在与否分别判断。每份结果位于Sxx/generation/exports，成功产出的目录文本另汇集到directories/Sxx.md；只有草稿则放drafts。失败不阻断其他文件，无自动批次重跑。已提交票据恢复须用快照src、原配置和原run执行CLI resume，不能再次启动本批脚本覆盖目录。`--fake-responses`只用于离线流程模拟。

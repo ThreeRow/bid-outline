@@ -153,7 +153,8 @@ def read_document(path: Path, reader: str = 'reading') -> Document:
             if cursor != len(block['text']):
                 diagnostics.append({'kind': 'reader_fragment_coverage_gap_or_overlap', 'block_id': bid, 'covered_end': cursor, 'text_length': len(block['text'])})
     return Document(document_id=docid, source_hash=digest, reader_name='reading', reader_version='2', elements=elements,
-                    diagnostics=diagnostics, metadata={'input_path': str(path.resolve()), 'reader_validation': validation,
+                    diagnostics=diagnostics, metadata={'input_path': str(path.resolve()), 'reader_sections':corrected.get('sections', []),
+                    'reader_validation': validation,
                     'reader_source_map': mapping, 'semantic_quality': validation.get('semantic_quality', 'not_evaluated'),
                     'reader_manifest_present': manifest is not None,
                     'input_sha256': manifest.get('input_sha256') if manifest else None,

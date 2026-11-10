@@ -45,7 +45,7 @@ def test_position_first_no_global_symbol_or_weak_word_scan(tmp_path):
 @pytest.mark.parametrize('symbol', list('★☆▲△■'))
 def test_symbols_are_location_signals_with_local_gate(tmp_path, symbol):
     async def run():
-        doc = document([(['采购需求'], symbol+'响应时间不超过2秒。')])
+        doc = document([(['合同条款'], symbol+'响应时间不超过2秒。')])
         result, client = await execute(tmp_path, doc, {'E00': ['保留\n技术指标']},
             directory_assistance=False, stop_after='candidates')
         assert [r['_task_type'] for r in client.requests] == ['E00']
@@ -56,11 +56,12 @@ def test_symbols_are_location_signals_with_local_gate(tmp_path, symbol):
 
 def test_local_rejection_does_not_erase_other_hits_and_failure_is_not_rejection(tmp_path):
     async def run():
-        doc = document([(['采购需求'], '至少包括：报价材料。'),
-                        (['采购需求'], '投标人承诺提供故障响应。')])
+        doc = document([(['合同条款'], '至少包括：报价材料。'),
+                        (['合同条款'], '投标人承诺提供故障响应。')])
         result, _ = await execute(tmp_path/'reject', doc, {'E00': ['排除']},
             directory_assistance=False, stop_after='candidates')
-        assert len(result['located_ranges'][0]['element_ids']) == 1
+        # A separate retained signal admits the whole section, including non-target lines.
+        assert len(result['located_ranges'][0]['element_ids']) == 2
         result, _ = await execute(tmp_path/'failed', doc, {'E00': ['']},
             directory_assistance=False, stop_after='candidates')
         assert result['status'] == 'incomplete'
@@ -89,8 +90,8 @@ def test_category_summary_then_directory_resume_and_exports(tmp_path):
             'N04': ['补充目录'], 'N05': ['# 最终目录']}
         result, client = await execute(tmp_path, doc, responses)
         assert result['status']=='completed'
-        assert result['organized']=={'A':'A汇总','B':'B汇总完整性先进性','C':'C汇总指标'}
-        for task, expected in [('N03','A汇总'),('N02-B','B汇总完整性先进性'),('N04','C汇总指标')]:
+        assert result['organized']=={'A':'格式整理','B':'完整性\n先进性','C':'必须满足响应指标'}
+        for task, expected in [('N03','格式整理'),('N02-B','完整性\n先进性'),('N04','必须满足响应指标')]:
             assert expected in next(r for r in client.requests if r['_task_type']==task)['messages'][-1]['content']
         assert not any(r['_task_type']=='N02-A' for r in client.requests)
         runner=WorkflowRunner(tmp_path, config(), FakeModelClient([]))
@@ -109,8 +110,8 @@ def test_organized_stage_never_generates_directory_and_no_id_contract(tmp_path):
         doc=document([(['项目需求'], '投标人承诺满足技术要求。')])
         result, client=await execute(tmp_path,doc,{'N01-C':['正常段落，非固定字段。'], 'E03-C':['整理后的技术依据']},
                                     directory_assistance=False,stop_after='organized')
-        assert result['organized']['C']=='整理后的技术依据'
-        assert [r['_task_type'] for r in client.requests]==['N01-C','E03-C']
+        assert result['organized']['C']=='正常段落，非固定字段。'
+        assert [r['_task_type'] for r in client.requests]==['N01-C']
         assert 'backbone.md' not in export_result(result,tmp_path/'exports')
     asyncio.run(run())
 
@@ -138,7 +139,7 @@ def test_anchor_extraction_and_invalid_anchor_fallback(tmp_path):
                  'N01-C':['回退保留完整条件'],'E03-C':['回退汇总']}
         result,client=await execute(tmp_path/'bad',doc,replies,directory_assistance=False,
                                     extraction_mode='anchors',stop_after='organized')
-        assert result['status']=='incomplete' and result['organized']['C']=='回退汇总'
+        assert result['status']=='incomplete' and result['organized']['C']=='回退保留完整条件'
         assert any(r['_task_type']=='N01-C' for r in client.requests)
     asyncio.run(run())
 
@@ -161,7 +162,7 @@ def test_projected_table_slice_keeps_original_mapping_through_token_splits(tmp_p
 
 def test_long_local_context_is_explicit_excerpt_not_full_unit_deletion(tmp_path):
     async def run():
-        doc=document([(['采购需求'], '前文。'*100+'至少包括：技术内容。'+'后文。'*100)])
+        doc=document([(['合同条款'], '前文。'*100+'至少包括：技术内容。'+'后文。'*100)])
         result,client=await execute(tmp_path,doc,{'E00':['排除']},directory_assistance=False,
             local_context_chars=80,stop_after='candidates')
         assert '局部节选' in client.requests[0]['messages'][-1]['content']
@@ -174,7 +175,7 @@ def test_resume_advances_endpoint_without_repeating_adopted_extraction(tmp_path)
         doc=document([(['投标文件格式'],'总体技术方案')])
         result,_=await execute(tmp_path,doc,{'E01':['无'],'N01-A':['格式内容'],'E03-A':['统一格式内容']},
                                stop_after='organized')
-        assert result['organized']['A']=='统一格式内容'
+        assert result['organized']['A']=='格式内容'
         client=FakeModelClient({'N05':['# 方案目录']})
         runner=WorkflowRunner(tmp_path,config(stop_after='directory'),client)
         try:
@@ -248,10 +249,8 @@ def test_partly_empty_category_preserves_real_directory_and_summary_inputs(tmp_p
         doc=document([(['第一章 投标文件格式'],'技术方案'),(['附件 技术文件'],'服务方案')])
         result,client=await execute(tmp_path,doc,{'N01-A':['无','售后服务方案'],
             'E03-A':['售后服务方案'],'N05':['售后服务方案']},directory_assistance=False)
-        summary=next(r for r in client.requests if r['_task_type']=='E03-A')
-        data=summary['messages'][0]['content'].split('\n\n---\n\n',1)[1]
-        assert '来源区域：第一章 投标文件格式' not in data
-        assert '来源区域：附件 技术文件' in data
+        assert not any(r['_task_type']=='E03-A' for r in client.requests)
+        assert result['organized']['A']=='售后服务方案'
         assert result['directory_text']=='售后服务方案'
         assert not any(r['_task_type']=='N02-A' for r in client.requests)
     asyncio.run(run())
@@ -265,11 +264,12 @@ def test_anchor_a_source_is_converted_to_directory_once(tmp_path):
             'N05':['总体技术方案\n培训方案']}
         result,client=await execute(tmp_path,doc,answers,directory_assistance=False,extraction_mode='anchors')
         tasks=[r['_task_type'] for r in client.requests]
-        assert tasks==['E02','N02-A','E03-A','N05']
+        assert tasks==['E02','N02-A','N05']
         request=next(r for r in client.requests if r['_task_type']=='N02-A')
-        instructions,body=request['messages'][0]['content'].split('\n\n---\n\n',1)
-        assert '截取内容所属章节' in instructions
-        assert body==doc.elements[0].text
+        instructions,body=request['messages'][-1]['content'].split('\n\n---\n\n',1)
+        assert '截取内容所属章节' not in instructions
+        assert '截取内容所属章节' in body
+        assert body.split('本次资料：\n',1)[1]==doc.elements[0].text
         assert result['directory_text']=='总体技术方案\n培训方案'
     asyncio.run(run())
 
@@ -283,20 +283,21 @@ def test_anchor_none_first_or_after_repair_skips_organization(tmp_path, answers)
         assert result['organized']['C']==''
         assert all(r['_task_type']=='E02' for r in client.requests)
         if len(client.requests)>1:
-            first=client.requests[0]['messages'][0]['content'].split('\n\n---\n\n',1)[1]
-            instructions,body=client.requests[1]['messages'][0]['content'].split('\n\n---\n\n',1)
-            assert body==first==doc.elements[0].text
-            assert '上次匹配问题' in instructions
+            first=client.requests[0]['messages'][-1]['content'].split('\n\n---\n\n',1)[1]
+            instructions,body=client.requests[1]['messages'][-1]['content'].split('\n\n---\n\n',1)
+            assert body.split('本次资料：\n',1)[1]==first.split('本次资料：\n',1)[1]==doc.elements[0].text
+            assert '上次匹配问题' not in instructions and '上次匹配问题' in body
     asyncio.run(run())
 
 
 def test_none_in_summary_stops_generation_and_none_at_final_keeps_existing_draft(tmp_path):
     async def run():
         doc=document([(['投标文件格式'],'技术方案')])
-        result,client=await execute(tmp_path/'summary',doc,{'N01-A':['技术方案'],'E03-A':['无']},
+        result,client=await execute(tmp_path/'summary',document([(['第一章 投标文件格式'],'技术方案'),
+            (['附件 技术文件'],'服务方案')]),{'N01-A':['技术方案','服务方案'],'E03-A':['无']},
                                     directory_assistance=False)
         assert result['organized']['A']=='' and result['directory_text']==''
-        assert [r['_task_type'] for r in client.requests]==['N01-A','E03-A']
+        assert [r['_task_type'] for r in client.requests]==['N01-A','N01-A','E03-A']
         result,client=await execute(tmp_path/'final',doc,{'N01-A':['技术方案'],'E03-A':['技术方案'],'N05':['无']},
                                     directory_assistance=False)
         assert result['draft_text']=='技术方案' and result['directory_text']==''
@@ -310,7 +311,8 @@ def test_directory_clarification_keeps_feedback_outside_directory_data(tmp_path)
         doc=document([(['特别栏目'],'技术方案')])
         result,client=await execute(tmp_path,doc,{'E01':['A：不存在的章节','A：特别栏目']},stop_after='candidates')
         assert result['located_ranges'][0]['category']=='A'
-        instructions,body=client.requests[1]['messages'][0]['content'].split('\n\n---\n\n',1)
-        assert body=='特别栏目' and '上次定位问题' in instructions
-        assert '不存在的章节' not in body
+        instructions,body=client.requests[1]['messages'][-1]['content'].split('\n\n---\n\n',1)
+        assert body.split('本次资料：\n',1)[1]=='特别栏目'
+        assert '上次定位问题' not in instructions and '上次定位问题' in body
+        assert '不存在的章节' in body.split('本次资料：\n',1)[0]
     asyncio.run(run())

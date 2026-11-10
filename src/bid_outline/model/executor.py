@@ -202,7 +202,8 @@ class ModelExecutor:
         inputs = prepare_call_inputs(inputs)
         aliases = inputs.get('id_aliases', {})
         messages = render_task(task_type, inputs, view_version=self.config.prompt_view,
-                               protocol=self.config.prompt_protocol, directory_protocol=self.config.directory_protocol)
+                               protocol=self.config.prompt_protocol, directory_protocol=self.config.directory_protocol,
+                               provider=self.config.provider)
         material_view = inputs.get('material_view')
         render_component = render_readable_view if self.config.prompt_view == 'readable-v1' else render_view
         material_counts = ({name: self.budget.text_tokens(
@@ -214,7 +215,7 @@ class ModelExecutor:
             dependency_hashes=dependency_hashes,
             template_version=spec.version, parser_version=spec.parser_version, business_rules_version='01-05-v1',
             output_protocol=self.config.protocol_for(task_type), protocol_version=PROTOCOL_VERSION,
-            config=self.config.model_dump(mode='json', exclude={'stop_after'}), rendered_messages=messages, executor_version='1.9.0')
+            config=self.config.model_dump(mode='json', exclude={'stop_after'}), rendered_messages=messages, executor_version='1.9.1')
         fingerprint = hashlib.sha256(json.dumps(fingerprint_data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         prior = self.repository.get_task(task_id)
         if prior and prior.get('fingerprint') == fingerprint and prior.get('status') == 'succeeded':
@@ -388,7 +389,12 @@ class ModelExecutor:
                 await self._write(directory / 'request.http.json', wire)
             else:
                 await self._write(directory / 'request.http.json', {k: v for k, v in request.items() if not k.startswith('_')})
-            await self._write(directory / 'input.md', '\n\n'.join(m['role'] + '\n' + m['content'] for m in attempt_messages), text=True)
+            if self.config.provider == 'train':
+                from .train_client import train_query
+                input_view = train_query(attempt_messages)
+            else:
+                input_view = '\n\n'.join('## ' + m['role'] + '\n\n' + m['content'] for m in attempt_messages)
+            await self._write(directory / 'input.md', input_view, text=True)
             task_count += 1
             started = time.monotonic()
             retry_delay = None
